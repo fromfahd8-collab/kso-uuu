@@ -36,12 +36,23 @@ jobs:
           Expand-Archive "ffmpeg.zip" "ffmpeg_temp"
           Get-ChildItem "ffmpeg_temp\ffmpeg-*\bin\ffmpeg.exe" | Copy-Item -Destination "Resources\ffmpeg.exe"
           Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "Resources\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
-          
-          # نحمل WebView2 ونفك الـ nupkg وناخد الـ DLL
-          Invoke-WebRequest "https://www.nuget.org/api/v2/package/Microsoft.WebView2/1.0.2592.51" -OutFile "webview2.nupkg"
-          Expand-Archive "webview2.nupkg" "webview2_temp"
-          Copy-Item "webview2_temp\lib\netcoreapp3.1\Microsoft.WebView2.Core.dll" -Destination "Libs\"
-          Copy-Item "webview2_temp\lib\netcoreapp3.1\Microsoft.WebView2.Wpf.dll" -Destination "Libs\"
+
+          # الحل: ننزل WebView2 SDK من github مايكروسوفت
+          Invoke-WebRequest "https://github.com/MicrosoftEdge/WebView2Feedback/releases/download/v1.0.3124.44/Microsoft.WebView2.FixedVersionRuntime.3124.44.x64.zip" -OutFile "webview2.zip"
+          Expand-Archive "webview2.zip" "webview2_temp"
+          # نجيب الـ dll من مجلد build
+          Invoke-WebRequest "https://www.nuget.org/api/v2/package/Microsoft.WebView2/1.0.3124.44" -OutFile "webview2_sdk.nupkg" -ErrorAction SilentlyContinue
+          if(Test-Path "webview2_sdk.nupkg"){
+            Expand-Archive "webview2_sdk.nupkg" "sdk_temp"
+            Copy-Item "sdk_temp\lib\netcoreapp3.1\Microsoft.WebView2.Core.dll" -Destination "Libs\"
+            Copy-Item "sdk_temp\lib\netcoreapp3.1\Microsoft.WebView2.Wpf.dll" -Destination "Libs\"
+          } else {
+            # fallback: نستخدم الاصدار القديم اللي لسه شغال
+            Invoke-WebRequest "https://www.nuget.org/api/v2/package/Microsoft.WebView2/1.0.2487.46" -OutFile "webview2_sdk.nupkg"
+            Expand-Archive "webview2_sdk.nupkg" "sdk_temp"
+            Copy-Item "sdk_temp\lib\netcoreapp3.1\Microsoft.WebView2.Core.dll" -Destination "Libs\"
+            Copy-Item "sdk_temp\lib\netcoreapp3.1\Microsoft.WebView2.Wpf.dll" -Destination "Libs\"
+          }
 
       - name: NUKE csproj - REFERENCE DLL DIRECT
         shell: pwsh
@@ -60,9 +71,11 @@ jobs:
             <ItemGroup>
               <Reference Include="Microsoft.WebView2.Core">
                 <HintPath>Libs\Microsoft.WebView2.Core.dll</HintPath>
+                <Private>True</Private>
               </Reference>
               <Reference Include="Microsoft.WebView2.Wpf">
                 <HintPath>Libs\Microsoft.WebView2.Wpf.dll</HintPath>
+                <Private>True</Private>
               </Reference>
               <PackageReference Include="Xceed.Wpf.Toolkit" Version="4.6.24151.1544" />
             </ItemGroup>
@@ -104,7 +117,7 @@ jobs:
         run: |
           $portablePath = "output\portable"
           $sizeMB = (Get-ChildItem $portablePath -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
-          Write-Host "Total Portable Size: $(::Round($sizeMB,2)) MB" -ForegroundColor Green
+          Write-Host "Total Portable Size: $([math]::Round($sizeMB,2)) MB" -ForegroundColor Green
           if ($sizeMB -lt 70) { exit 1 }
 
       - name: Zip Portable
