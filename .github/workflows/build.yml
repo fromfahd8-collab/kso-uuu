@@ -9,7 +9,6 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
@@ -44,7 +43,7 @@ jobs:
           [xml]$csproj = Get-Content $csprojPath
           $itemGroup = $csproj.Project.ItemGroup | Where-Object { $_.PackageReference } | Select-Object -First 1
           if (-not $itemGroup) { $itemGroup = $csproj.CreateElement("ItemGroup", $csproj.Project.NamespaceURI); $csproj.Project.InsertBefore($itemGroup, $csproj.Project.ItemGroup[0]) | Out-Null }
-          $packages = @(@{Name="Microsoft.Web.WebView2"; Version="1.0.3124.44"}, @{Name="Xceed.Wpf.Toolkit"; Version="4.6.24151.1544"})
+          $packages = @(@{Name="Microsoft.WebView2"; Version="1.0.3124.44"}, @{Name="Xceed.Wpf.Toolkit"; Version="4.6.24151.1544"})
           foreach ($pkg in $packages) { $exists = $itemGroup.PackageReference | Where-Object { $_.Include -eq $pkg.Name }; if (-not $exists) { $pr = $csproj.CreateElement("PackageReference", $csproj.Project.NamespaceURI); $pr.SetAttribute("Include", $pkg.Name); $pr.SetAttribute("Version", $pkg.Version); $itemGroup.AppendChild($pr) | Out-Null } }
           $csproj.Save($csprojPath)
 
@@ -53,16 +52,14 @@ jobs:
         run: |
           $xamlPath = "MainWindow.xaml"
           $content = Get-Content $xamlPath -Raw
-          # 1. نضيف الـ xmlns لو مش موجود
+          # ده الاسم الصح من موقع مايكروسوفت
           if ($content -notlike '*xmlns:wpf=*') { 
-            $content = $content -replace '<Window ', '<Window xmlns:wpf="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf" ' 
+            $content = $content -replace '<Window ', '<Window xmlns:wpf="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf" ' 
           }
-          # 2. نغير اي WebView2 لـ wpf:WebView2
           $content = $content -replace '<WebView2', '<wpf:WebView2'
           $content = $content -replace '</WebView2>', '</wpf:WebView2>'
           $content = $content -replace 'wv2:WebView2', 'wpf:WebView2'
           $content | Out-File $xamlPath -Encoding UTF8
-          Write-Host "XAML Fixed Before Restore"
 
       - name: Force EmbeddedResource in csproj
         shell: pwsh
@@ -85,7 +82,7 @@ jobs:
           $portablePath = "output\portable"
           $sizeMB = (Get-ChildItem $portablePath -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
           Write-Host "Total Portable Size: $(::Round($sizeMB,2)) MB" -ForegroundColor Green
-          if ($sizeMB -lt 70) { Write-Host "ERROR: Size too small" -ForegroundColor Red; exit 1 }
+          if ($sizeMB -lt 70) { exit 1 }
 
       - name: Zip Portable
         run: Compress-Archive -Path output\portable\* -DestinationPath KSO-Portable-x64-Offline.zip
