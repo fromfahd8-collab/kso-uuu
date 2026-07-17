@@ -1,0 +1,39 @@
+# Build results
+bin/
+obj/
+publish/
+Output/
+x64/
+x86/
+Release/
+Debug/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.sln.docstates
+
+# Inno Setup
+*.exe
+!KSO_Setup_*.exe
+setup.iss
+
+# Github Actions Artifacts
+KSO_Portable_*.zip
+KSO_Setup_*.exe
+
+# User files
+*.db
+config.json
+lang.json
+log.txt
+downloads_history.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp

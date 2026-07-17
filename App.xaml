@@ -1,0 +1,41 @@
+using System;
+using System.IO;
+using System.Reflection;
+using System.Windows;
+
+namespace KSO
+{
+    public partial class App : Application
+    {
+        protected override void OnStartup(StartupEventArgs e)
+        {
+            base.OnStartup(e);
+            
+            // 1. نعمل فولدر للبرنامج في AppData
+            string appFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "KSO");
+            Directory.CreateDirectory(appFolder);
+
+            // 2. نفك ffmpeg.exe لو مش موجود
+            ExtractResource("KSO.Resources.ffmpeg.exe", Path.Combine(appFolder, "ffmpeg.exe"));
+            
+            // 3. نفك config.json و lang.json اول مرة بس
+            ExtractResource("KSO.Resources.config.json", Path.Combine(appFolder, "config.json"));
+            ExtractResource("KSO.Resources.lang.json", Path.Combine(appFolder, "lang.json"));
+        }
+
+        private void ExtractResource(string resourceName, string outputPath)
+        {
+            if (File.Exists(outputPath)) return; // لو موجود خلاص
+
+            var assembly = Assembly.GetExecutingAssembly();
+            using (Stream? stream = assembly.GetManifestResourceStream(resourceName))
+            {
+                if (stream == null) return;
+                using (FileStream fileStream = new FileStream(outputPath, FileMode.Create))
+                {
+                    stream.CopyTo(fileStream);
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ApplicationIcon>Resources\icon.ico</ApplicationIcon>
+    <AssemblyTitle>KSO Download Turbo Ultra V1.0 PRO</AssemblyTitle>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Product>KSO Download Turbo Ultra V1.0 PRO</Product>
+    <Company>KSO Team</Company>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained> <!-- 1. خليته true عشان يشتغل بدون نت -->
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile> <!-- 2. ضفته عشان الحجم يقل -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PlatformTarget>x64</PlatformTarget>
+    <OptimizationLevel>Release</OptimizationLevel>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="SpeedTest.Net" Version="4.1.0" />
+    <PackageReference Include="Xceed.Wpf.Toolkit" Version="4.6.0" />
+    <PackageReference Include="Microsoft.WebView2.Wpf" Version="1.0.2210.55" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 3. دول لازم EmbeddedResource عشان App.xaml.cs يعرف يفكهم -->
+    <EmbeddedResource Include="Resources\config.json" />
+    <EmbeddedResource Include="Resources\lang.json" />
+    <EmbeddedResource Include="Resources\ffmpeg.exe" />
+    <EmbeddedResource Include="Resources\yt-dlp.exe" />
+    
+    <!-- الايقونة بس -->
+    <Resource Include="Resources\icon.ico" />
+  </ItemGroup>
+
+</Project>

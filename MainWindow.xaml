@@ -1,0 +1,190 @@
+<Window x:Class="KSO.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:xctk="http://schemas.xceed.com/wpf/xaml/toolkit"
+        xmlns:wv2="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf"
+        xmlns:local="clr-namespace:KSO"
+        xmlns:modules="clr-namespace:KSO.Modules"
+        xmlns:lang="clr-namespace:KSO.Helpers"
+        Title="{x:Static lang:Lang.Title}" Height="800" Width="1300"
+        WindowStartupLocation="CenterScreen"
+        Icon="app.ico"
+        Closing="Window_Closing"
+        AllowDrop="True"
+        Drop="Window_Drop"
+        DragEnter="Window_DragEnter">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 1. كلمة KSO -->
+        <TextBlock Grid.Row="0" Text="KSO" FontSize="32" FontWeight="Bold" Foreground="#00C8FF" 
+                   HorizontalAlignment="Center" Margin="5" FontFamily="Segoe UI Black"/>
+
+        <!-- شريط الأدوات -->
+        <ToolBar Grid.Row="1" Margin="2" WrapPanel.IsWrapEnabled="True">
+            <Button x:Name="btnLang" Content="AR/EN" Click="BtnLang_Click" />
+            <Separator/>
+            <Label x:Name="lblQuality" Content="{x:Static lang:Lang.Quality}" />
+            <ComboBox x:Name="cmbQuality" Width="100" SelectionChanged="CmbQuality_SelectionChanged">
+                <ComboBoxItem Content="best"/>
+                <ComboBoxItem Content="8K"/>
+                <ComboBoxItem Content="4K"/>
+                <ComboBoxItem Content="2K"/>
+                <ComboBoxItem Content="1080p"/>
+                <ComboBoxItem Content="720p"/>
+                <ComboBoxItem Content="480p"/>
+                <ComboBoxItem Content="360p"/>
+                <ComboBoxItem Content="144p"/>
+                <ComboBoxItem Content="audio"/>
+            </ComboBox>
+            <Separator/>
+            <Label x:Name="lblPath" Content="{x:Static lang:Lang.Path}" />
+            <Button x:Name="btnPath" Content="{Binding Config.DownloadPath}" Click="BtnPath_Click" Width="200" />
+            <Separator/>
+            <Label x:Name="lblThreads" Content="{x:Static lang:Lang.ThreadCount}" />
+            <xctk:IntegerUpDown x:Name="spinThreads" Value="{Binding Config.MaxThreads}" Minimum="16" Maximum="1000000" Width="80" ValueChanged="SpinThreads_ValueChanged" />
+            <Separator/>
+            <CheckBox x:Name="chkSmartMode" Content="{x:Static lang:Lang.SmartMode}" IsChecked="{Binding Config.SmartMode}" Checked="ChkSmartMode_Checked" Unchecked="ChkSmartMode_Unchecked" />
+            <Separator/>
+            <Label Content="{x:Static lang:Lang.Schedule}" />
+            <xctk:TimePicker x:Name="timeSchedule" Value="{Binding Config.ScheduleTime}" Format="HH:mm" Width="80" />
+            <Separator/>
+            <Label x:Name="lblSpeedLimit" Content="{x:Static lang:Lang.SpeedLimit}" />
+            <xctk:IntegerUpDown x:Name="spinSpeedLimit" Value="{Binding Config.SpeedLimitKB}" Minimum="0" Maximum="999" Width="80" ValueChanged="SpinSpeedLimit_ValueChanged" />
+            <Label Content="KB/s" />
+            <Separator/>
+            <Label Content="{x:Static lang:Lang.Proxy}" />
+            <TextBox x:Name="txtProxy" Text="{Binding Config.Proxy, UpdateSourceTrigger=PropertyChanged}" Width="150" TextChanged="TxtProxy_TextChanged" />
+            <Separator/>
+            <Label Content="{x:Static lang:Lang.Password}" />
+            <PasswordBox x:Name="txtPassword" PasswordChanged="TxtPassword_PasswordChanged" Width="100" />
+            <Separator/>
+            <CheckBox x:Name="chkAutoCompress" Content="{x:Static lang:Lang.AutoCompress}" IsChecked="{Binding Config.AutoCompress}" Checked="ChkAutoCompress_Checked" Unchecked="ChkAutoCompress_Unchecked" />
+            <Separator/>
+            <Label Content="{x:Static lang:Lang.CompressMode}" />
+            <ComboBox x:Name="cmbCompressMode" Width="80" SelectionChanged="CmbCompressMode_SelectionChanged">
+                <ComboBoxItem Content="Normal"/><ComboBoxItem Content="Max"/><ComboBoxItem Content="Ultra"/>
+            </ComboBox>
+            <Separator/>
+            <CheckBox x:Name="chkDeleteOriginal" Content="{x:Static lang:Lang.DeleteOriginal}" IsChecked="{Binding Config.DeleteOriginal}" Checked="ChkDeleteOriginal_Checked" Unchecked="ChkDeleteOriginal_Unchecked" />
+            <Separator/>
+            <CheckBox x:Name="chkNoDuplicate" Content="{x:Static lang:Lang.NoDuplicate}" IsChecked="{Binding Config.NoDuplicate}" Checked="ChkNoDuplicate_Checked" Unchecked="ChkNoDuplicate_Unchecked" />
+            <Separator/>
+            <CheckBox x:Name="chkShutdown" Content="{x:Static lang:Lang.Shutdown}" IsChecked="{Binding Config.ShutdownOnComplete}" Checked="ChkShutdown_Checked" Unchecked="ChkShutdown_Unchecked" />
+            <Separator/>
+            <CheckBox x:Name="chkBrowser" Content="{x:Static lang:Lang.Browser}" IsChecked="True" Checked="ChkBrowser_Checked" Unchecked="ChkBrowser_Unchecked" />
+            <Separator/>
+            
+            <!-- الزرارين الجداد بتوع التحديث -->
+            <Button x:Name="btnUpdateYtDlp" Content="تحديث yt-dlp" Click="BtnUpdateYtDlp_Click" Background="#0078D4" Foreground="White" FontWeight="Bold" />
+            <Button x:Name="btnUpdateFfmpeg" Content="تحديث ffmpeg" Click="BtnUpdateFfmpeg_Click" Background="#0078D4" Foreground="White" FontWeight="Bold" />
+            <Separator/>
+            
+            <Button x:Name="btnAbout" Content="{x:Static lang:Lang.About}" Click="BtnAbout_Click" />
+        </ToolBar>
+
+        <!-- باقي الواجهة -->
+        <Grid Grid.Row="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="txtUrl" Grid.Column="0" VerticalContentAlignment="Center" KeyDown="TxtUrl_KeyDown" 
+                         ToolTip="{x:Static lang:Lang.DownloadQ}"/>
+                <Button x:Name="btnAdd" Grid.Column="1" Content="{x:Static lang:Lang.AddDownload}" Click="BtnAdd_Click" Width="100" Margin="5,0" />
+                <TextBox x:Name="txtSearch" Grid.Column="2" Width="200" VerticalContentAlignment="Center" 
+                         TextChanged="TxtSearch_TextChanged" ToolTip="{x:Static lang:Lang.SearchPlaceholder}"/>
+            </Grid>
+
+            <TabControl x:Name="MainTabControl" Grid.Row="1" Margin="2">
+                <TabItem x:Name="tabDownloads" Header="{x:Static lang:Lang.DownloadsTab}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,5">
+                            <Label Content="{x:Static lang:Lang.Filter}" />
+                            <ComboBox x:Name="cmbFilter" Width="100" SelectedIndex="0" SelectionChanged="CmbFilter_SelectionChanged">
+                                <ComboBoxItem Content="All"/><ComboBoxItem Content="Downloading"/>
+                                <ComboBoxItem Content="Finished"/><ComboBoxItem Content="Error"/>
+                            </ComboBox>
+                            <Button x:Name="btnReDownload" Content="{x:Static lang:Lang.ReDownload}" Click="BtnReDownload_Click" Margin="5,0" />
+                            <Button x:Name="btnExportCsv" Content="{x:Static lang:Lang.ExportCsv}" Click="BtnExportCsv_Click" Margin="5,0" />
+                            <Button x:Name="btnClearCache" Content="{x:Static lang:Lang.ClearCache}" Click="BtnClearCache_Click" Margin="5,0" />
+                            <Button x:Name="btnClearTemp" Content="{x:Static lang:Lang.ClearTemp}" Click="BtnClearTemp_Click" Margin="5,0" />
+                        </StackPanel>
+
+                        <ListView x:Name="lvDownloads" Grid.Row="1" ItemsSource="{Binding DownloadsView}">
+                            <ListView.View>
+                                <GridView>
+                                    <GridViewColumn Header="{x:Static lang:Lang.Name}" DisplayMemberBinding="{Binding FileName}" Width="180" />
+                                    <GridViewColumn Header="{x:Static lang:Lang.Progress}" Width="130">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <StackPanel>
+                                                    <ProgressBar Value="{Binding ProgressPercentage}" Height="18" />
+                                                    <TextBlock Text="{Binding ProgressPercentage, StringFormat={}{0:F1}%}" HorizontalAlignment="Center" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn Header="{x:Static lang:Lang.Speed}" DisplayMemberBinding="{Binding SpeedDisplay}" Width="100" />
+                                    <GridViewColumn Header="{x:Static lang:Lang.Size}" DisplayMemberBinding="{Binding SizeDisplay}" Width="100" />
+                                    <GridViewColumn Header="{x:Static lang:Lang.Remaining}" DisplayMemberBinding="{Binding TimeLeftDisplay}" Width="100" />
+                                    <GridViewColumn Header="التوفير" Width="120">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding SavedText}" Foreground="LimeGreen" FontWeight="Bold"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn Header="{x:Static lang:Lang.Status}" DisplayMemberBinding="{Binding Status}" Width="120" />
+                                    <GridViewColumn Header="{x:Static lang:Lang.Actions}" Width="180">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="⏸" Margin="2" Command="{Binding PauseCommand}" />
+                                                    <Button Content="▶" Margin="2" Command="{Binding ResumeCommand}" />
+                                                    <Button Content="✕" Margin="2" Command="{Binding CancelCommand}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+
+                        <StatusBar Grid.Row="2">
+                            <StatusBarItem><TextBlock Text="{Binding StatusBarText}" /></StatusBarItem>
+                            <StatusBarItem HorizontalAlignment="Right"><TextBlock x:Name="lblResources" Text="" /></StatusBarItem>
+                        </StatusBar>
+                    </Grid>
+                </TabItem>
+
+                <TabItem x:Name="tabBrowser" Header="{x:Static lang:Lang.BrowserTab}">
+                    <wv2:WebView2 x:Name="browser" NavigationCompleted="Browser_NavigationCompleted" />
+                </TabItem>
+
+                <!-- 2. تبويب السناب تيوب -->
+                <TabItem x:Name="tabSnapTube" Header="{x:Static lang:Lang.SnapTubeTab}">
+                    <modules:SnapTubeTab x:Name="snapTubeTab" />
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </Grid>
+</Window>

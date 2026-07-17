@@ -1,0 +1,74 @@
+<Window x:Class="KSO.AboutDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:lang="clr-namespace:KSO.Helpers"
+        Title="{x:Static lang:Lang.AboutTitle}" Height="550" Width="700"
+        WindowStartupLocation="CenterOwner"
+        Icon="app.ico"
+        ResizeMode="NoResize"
+        Background="#1E1E1E"
+        Foreground="White">
+    <TabControl Background="#2D2D2D">
+        <TabItem x:Name="tabAbout1" Header="{x:Static lang:Lang.AboutTab1}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="15">
+                    <TextBlock Text="KSO" FontWeight="Bold" FontSize="28" Foreground="#00C8FF" HorizontalAlignment="Center" Margin="0,0,0,5"/>
+                    <TextBlock Text="{x:Static lang:Lang.AboutProgrammer}" FontWeight="Bold" FontSize="16" Margin="0,0,0,10" HorizontalAlignment="Center"/>
+                    
+                    <TextBlock TextWrapping="Wrap" LineHeight="24" FontSize="14">
+                        <Run Text="{x:Static lang:Lang.AboutVersion}" FontWeight="Bold" FontSize="16" Foreground="#00C8FF"/><LineBreak/><LineBreak/>
+                        
+                        <Run Text="{x:Static lang:Lang.AboutDescLabel}" FontWeight="Bold" FontSize="15" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.AboutDesc}" /><LineBreak/><LineBreak/>
+                        
+                        <Run Text="{x:Static lang:Lang.FeaturesNewLabel}" FontWeight="Bold" FontSize="15" Foreground="LimeGreen" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.Feature1}" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.Feature2}" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.Feature3}" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.Feature4}" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.Feature5}" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.Feature6}" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.Feature7}" /><LineBreak/><LineBreak/>
+                        
+                        <Run Text="{x:Static lang:Lang.FeaturesAllLabel}" FontWeight="Bold" FontSize="15" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.Feature8}" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.Feature9}" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.Feature10}" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.Feature11}" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.Feature12}" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.Feature13}" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.Feature14}" /><LineBreak/><LineBreak/>
+                        
+                        <Run Text="{x:Static lang:Lang.CompareLabel}" FontWeight="Bold" FontSize="15" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.CompareIDM}" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.CompareSnap}" /><LineBreak/>
+                        <Run Text="{x:Static lang:Lang.CompareKSO}" Foreground="LimeGreen" FontWeight="Bold" />
+                    </TextBlock>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+        <TabItem x:Name="tabAbout2" Header="{x:Static lang:Lang.AboutTab2}">
+            <ListView x:Name="lvShortcuts" BorderThickness="0" Background="#2D2D2D">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="{x:Static lang:Lang.Key}" DisplayMemberBinding="{Binding Key}" Width="150"/>
+                        <GridViewColumn Header="{x:Static lang:Lang.Function}" DisplayMemberBinding="{Binding Description}" Width="500"/>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </TabItem>
+        <TabItem x:Name="tabAbout3" Header="{x:Static lang:Lang.AboutTab3}">
+            <StackPanel Margin="15">
+                <TextBlock Text="{x:Static lang:Lang.RequiredFilesLabel}" FontWeight="Bold" FontSize="16" Foreground="#00C8FF" Margin="0,0,0,10"/>
+                <TextBlock Text="{x:Static lang:Lang.RequiredFile1}" FontSize="14" Margin="0,5"/>
+                <TextBlock Text="{x:Static lang:Lang.RequiredFile2}" FontSize="14" Margin="0,5"/>
+                <TextBlock Text="{x:Static lang:Lang.RequiredFile3}" FontSize="14" Margin="0,5"/>
+                <Separator Margin="0,10"/>
+                <TextBlock Text="{x:Static lang:Lang.CompressModesLabel}" FontWeight="Bold" FontSize="16" Foreground="#00C8FF" Margin="0,0,0,10"/>
+                <TextBlock Text="{x:Static lang:Lang.CompressNormal}" FontSize="14" Margin="0,5"/>
+                <TextBlock Text="{x:Static lang:Lang.CompressMax}" FontSize="14" Margin="0,5"/>
+                <TextBlock Text="{x:Static lang:Lang.CompressUltra}" FontSize="14" Margin="0,5"/>
+            </StackPanel>
+        </TabItem>
+    </TabControl>
+</Window>
