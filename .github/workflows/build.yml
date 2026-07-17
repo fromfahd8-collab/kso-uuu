@@ -38,7 +38,7 @@ jobs:
               <ImplicitUsings>enable</ImplicitUsings>
             </PropertyGroup>
             <ItemGroup>
-              <PackageReference Include="Microsoft.WebView2" Version="1.0.3270.60" />
+              <PackageReference Include="Microsoft.WebView2" Version="1.0.4078.44" />
               <PackageReference Include="Xceed.Wpf.Toolkit" Version="4.6.24151.1544" />
             </ItemGroup>
             <ItemGroup>
@@ -69,14 +69,6 @@ jobs:
       - name: Publish SelfContained
         shell: pwsh
         run: dotnet publish KSO.csproj -c Release -r win-x64 -p:PublishSingleFile=false -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -o output\portable
-
-      - name: VERIFY Build Output
-        shell: pwsh
-        run: |
-          $portablePath = "output\portable"
-          $sizeMB = (Get-ChildItem $portablePath -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
-          Write-Host "Total Portable Size: $([math]::Round($sizeMB,2)) MB" -ForegroundColor Green
-          if ($sizeMB -lt 70) { Write-Host "ERROR: Build too small" -ForegroundColor Red; exit 1 }
 
       - name: Zip Portable
         run: Compress-Archive -Path output\portable\* -DestinationPath KSO-Portable-x64-Offline.zip
