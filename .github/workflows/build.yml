@@ -9,7 +9,6 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
@@ -22,7 +21,8 @@ jobs:
           <configuration>
             <packageSources>
               <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
-            </configuration>
+            </packageSources>
+          </configuration>
           "@ | Out-File NuGet.config -Encoding UTF8
 
       - name: Download Offline Dependencies
@@ -40,19 +40,16 @@ jobs:
         run: |
           $csprojPath = "KSO.csproj"
           [xml]$csproj = Get-Content $csprojPath
-
           $itemGroup = $csproj.Project.ItemGroup | Where-Object { $_.PackageReference } | Select-Object -First 1
           if (-not $itemGroup) {
             $itemGroup = $csproj.CreateElement("ItemGroup", $csproj.Project.NamespaceURI)
             $csproj.Project.InsertBefore($itemGroup, $csproj.Project.ItemGroup[0]) | Out-Null
           }
-
           $packages = @(
             @{Name="Microsoft.WebView2"; Version="1.0.3124.44"},
             @{Name="Microsoft.WebView2.Wpf"; Version="1.0.3124.44"},
             @{Name="Xceed.Wpf.Toolkit"; Version="4.6.24151.1544"}
           )
-
           foreach ($pkg in $packages) {
             $exists = $itemGroup.PackageReference | Where-Object { $_.Include -eq $pkg.Name }
             if (-not $exists) {
@@ -90,20 +87,15 @@ jobs:
         run: |
           $xamlPath = "MainWindow.xaml"
           [xml]$xaml = Get-Content $xamlPath
-
           if (-not $xaml.Window.GetAttribute("xmlns:wpf")) {
             $xaml.Window.SetAttribute("xmlns:wpf", "clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf")
           }
-
-          $xamlString = $xaml.OuterXml
-          $xamlString = $xamlString -replace 'wv2:WebView2', 'wpf:WebView2'
-
+          $xamlString = $xaml.OuterXml -replace 'wv2:WebView2', 'wpf:WebView2'
           $xamlString | Out-File $xamlPath -Encoding UTF8
 
       - name: Publish SelfContained
         shell: pwsh
-        run: |
-          dotnet publish KSO.csproj -c Release -r win-x64 -p:PublishSingleFile=false -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -o output\portable
+        run: dotnet publish KSO.csproj -c Release -r win-x64 -p:PublishSingleFile=false -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -o output\portable
 
       - name: Zip Portable
         run: Compress-Archive -Path output\portable\* -DestinationPath KSO-Portable-x64-Offline.zip
@@ -146,15 +138,13 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: KSO-Builds-Offline
-          path:
-            KSO-Portable-x64-Offline.zip
+          path: KSO-Portable-x64-Offline.zip
             KSO-Setup-x64-Offline.exe
 
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files:
-            KSO-Portable-x64-Offline.zip
+          files: KSO-Portable-x64-Offline.zip
             KSO-Setup-x64-Offline.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
