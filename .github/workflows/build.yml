@@ -36,7 +36,6 @@ jobs:
           Expand-Archive "ffmpeg.zip" "ffmpeg_temp"
           Get-ChildItem "ffmpeg_temp\ffmpeg-*\bin\ffmpeg.exe" | Copy-Item -Destination "Resources\ffmpeg.exe"
           Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "Resources\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
-          Write-Host "Downloaded Full WebView2 Runtime ~120MB"
 
       - name: Force Add Packages to csproj
         shell: pwsh
@@ -49,6 +48,22 @@ jobs:
           foreach ($pkg in $packages) { $exists = $itemGroup.PackageReference | Where-Object { $_.Include -eq $pkg.Name }; if (-not $exists) { $pr = $csproj.CreateElement("PackageReference", $csproj.Project.NamespaceURI); $pr.SetAttribute("Include", $pkg.Name); $pr.SetAttribute("Version", $pkg.Version); $itemGroup.AppendChild($pr) | Out-Null } }
           $csproj.Save($csprojPath)
 
+      - name: FORCE FIX MainWindow.xaml BEFORE RESTORE
+        shell: pwsh
+        run: |
+          $xamlPath = "MainWindow.xaml"
+          $content = Get-Content $xamlPath -Raw
+          # 1. نضيف الـ xmlns لو مش موجود
+          if ($content -notlike '*xmlns:wpf=*') { 
+            $content = $content -replace '<Window ', '<Window xmlns:wpf="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf" ' 
+          }
+          # 2. نغير اي WebView2 لـ wpf:WebView2
+          $content = $content -replace '<WebView2', '<wpf:WebView2'
+          $content = $content -replace '</WebView2>', '</wpf:WebView2>'
+          $content = $content -replace 'wv2:WebView2', 'wpf:WebView2'
+          $content | Out-File $xamlPath -Encoding UTF8
+          Write-Host "XAML Fixed Before Restore"
+
       - name: Force EmbeddedResource in csproj
         shell: pwsh
         run: |
@@ -60,17 +75,6 @@ jobs:
       - name: Restore with nuget.org
         run: dotnet restore KSO.csproj --source https://api.nuget.org/v3/index.json
 
-      - name: FORCE FIX MainWindow.xaml
-        shell: pwsh
-        run: |
-          $xamlPath = "MainWindow.xaml"
-          $content = Get-Content $xamlPath -Raw
-          if ($content -notlike '*xmlns:wpf=*') { $content = $content -replace '<Window ', '<Window xmlns:wpf="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf" ' }
-          $content = $content -replace 'wv2:WebView2', 'wpf:WebView2'
-          $content = $content -replace '<WebView2', '<wpf:WebView2'
-          $content = $content -replace '</WebView2>', '</wpf:WebView2>'
-          $content | Out-File $xamlPath -Encoding UTF8
-
       - name: Publish SelfContained
         shell: pwsh
         run: dotnet publish KSO.csproj -c Release -r win-x64 -p:PublishSingleFile=false -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -o output\portable
@@ -80,16 +84,13 @@ jobs:
         run: |
           $portablePath = "output\portable"
           $sizeMB = (Get-ChildItem $portablePath -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
-          Write-Host "Total Portable Size: $([math]::Round($sizeMB,2)) MB" -ForegroundColor Green
+          Write-Host "Total Portable Size: $(::Round($sizeMB,2)) MB" -ForegroundColor Green
           if ($sizeMB -lt 70) { Write-Host "ERROR: Size too small" -ForegroundColor Red; exit 1 }
-          Write-Host "VERIFICATION PASSED!" -ForegroundColor Green
 
       - name: Zip Portable
         run: Compress-Archive -Path output\portable\* -DestinationPath KSO-Portable-x64-Offline.zip
-
       - name: Install Inno
         run: choco install innosetup -y
-
       - name: Create Setup.exe with Inno - OFFLINE FULL
         shell: pwsh
         run: |
@@ -121,14 +122,12 @@ jobs:
           "@
           $iss | Out-File setup.iss -Encoding UTF8
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup.iss
-
       - uses: actions/upload-artifact@v4
         with:
           name: KSO-Builds-Offline-Full
           path:
             KSO-Portable-x64-Offline.zip
             KSO-Setup-x64-Offline-Full.exe
-
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
