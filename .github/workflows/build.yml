@@ -52,22 +52,27 @@ jobs:
       - name: Restore
         run: dotnet restore KSO.csproj
 
-      - name: Auto Fix MainWindow.xaml AFTER Restore
+      - name: FIX MainWindow.xaml - Only Line 180
         shell: pwsh
         run: |
           $xamlPath = "MainWindow.xaml"
-          $xaml = Get-Content $xamlPath -Raw
+          $lines = Get-Content $xamlPath
           
-          # ضيف xmlns:wpf
-          if ($xaml -notlike '*xmlns:wpf=*') {
-            $xaml = $xaml -replace '<Window ', '<Window xmlns:wpf="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf" '
+          # 1. شوف لو xmlns:wpf ناقص وضيفه في اول سطر Window
+          $windowLine = $lines | Select-String '<Window' | Select-Object -First 1
+          if ($windowLine -and $windowLine.Line -notlike '*xmlns:wpf=*') {
+            $newLine = $windowLine.Line -replace '<Window ', '<Window xmlns:wpf="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf" '
+            $lines[$windowLine.LineNumber - 1] = $newLine
           }
           
-          # غير wv2: لـ wpf:
-          $xaml = $xaml -replace '<wv2:WebView2', '<wpf:WebView2'
-          $xaml = $xaml -replace '</wv2:WebView2>', '</wpf:WebView2>'
+          # 2. عدل سطر 180 بس: غير wv2: لـ wpf:
+          if ($lines.Count -ge 180) {
+            $lines[179] = $lines[179] -replace '<wv2:WebView2', '<wpf:WebView2'
+            $lines[179] = $lines[179] -replace '</wv2:WebView2>', '</wpf:WebView2>'
+          }
           
-          $xaml | Out-File $xamlPath -Encoding UTF8
+          $lines | Out-File $xamlPath -Encoding UTF8
+          Write-Host "Fixed xmlns and line 180 only. Rest of XAML untouched."
 
       - name: Publish SelfContained
         shell: pwsh
