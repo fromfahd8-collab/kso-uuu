@@ -2,17 +2,15 @@ using System;
 using System.IO;
 using System.Reflection;
 using System.Windows;
-using KSO.Helpers;
 
 namespace KSO
 {
     public partial class App : Application
     {
-        // 1. فولدر Resources جوه البرنامج. ده اللي هنفك فيه
-        public static string AppDataFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources");
+        // 1. هنفك في AppData مش جنب الexe
+        public static string AppDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "KSO");
 
-        // 2. مسارات مباشرة عشان نستخدمها في كل البرنامج
-        public static string YtDlpPath => Path.Combine(AppDataFolder, "yt-dlp.exe");
+        public static string YTdlpPath => Path.Combine(AppDataFolder, "yt-dlp.exe");
         public static string FfmpegPath => Path.Combine(AppDataFolder, "ffmpeg.exe");
 
         protected override void OnStartup(StartupEventArgs e)
@@ -23,32 +21,32 @@ namespace KSO
             {
                 Directory.CreateDirectory(AppDataFolder);
 
-                // 3. فك كل الملفات المضمنة في Resources اول مرة بس
+                // 2. فك كل الملفات اول مرة
                 ExtractResource("KSO.Resources.ffmpeg.exe", FfmpegPath);
-                ExtractResource("KSO.Resources.yt-dlp.exe", YtDlpPath);
+                ExtractResource("KSO.Resources.yt-dlp.exe", YTdlpPath);
                 ExtractResource("KSO.Resources.config.json", Path.Combine(AppDataFolder, "config.json"));
                 ExtractResource("KSO.Resources.lang.json", Path.Combine(AppDataFolder, "lang.json"));
 
-                // 4. حمل اللغة بعد ما فكيت الملف
-                Lang.Load(); 
+                // 3. حمل اللغة
+                Lang.Load();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ في بدء التشغيل: {ex.Message}", "KSO Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"حصل خطأ: {ex.Message}", "KSO Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                Shutdown();
             }
         }
 
         private void ExtractResource(string resourceName, string outputPath)
         {
-            // لو الملف موجود اصلا متعملش Overwrite عشان منبوظش الاعدادات
-            if (File.Exists(outputPath)) return;
+            if (File.Exists(outputPath)) return; // لو موجود خلاص
 
             var assembly = Assembly.GetExecutingAssembly();
             using (Stream? stream = assembly.GetManifestResourceStream(resourceName))
             {
                 if (stream == null)
                 {
-                    MessageBox.Show($"خطأ: لم يتم العثور على الملف المضمن {resourceName}\nاتأكد ان Build Action = EmbeddedResource", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show($"لم يتم العثور على الملف: {resourceName}\nتأكد ان Build Action = EmbeddedResource", "خطأ");
                     return;
                 }
                 using (FileStream fileStream = new FileStream(outputPath, FileMode.Create))
