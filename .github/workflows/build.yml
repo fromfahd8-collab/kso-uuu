@@ -14,21 +14,55 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Add Missing NuGet Packages
+        shell: pwsh
+        run: |
+          dotnet add KSO.csproj package Microsoft.WebView2 --version 1.0.3124.44
+          dotnet add KSO.csproj package Microsoft.WebView2.Wpf --version 1.0.3124.44
+          dotnet add KSO.csproj package Xceed.Wpf.Toolkit --version 4.6.24151.1544
+
       - name: Download Offline Dependencies
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "Resources"
-
-          # 1. yt-dlp
           Invoke-WebRequest "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "Resources\yt-dlp.exe"
-
-          # 2. ffmpeg
           Invoke-WebRequest "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile "ffmpeg.zip"
           Expand-Archive "ffmpeg.zip" "ffmpeg_temp"
           Get-ChildItem "ffmpeg_temp\ffmpeg-*\bin\ffmpeg.exe" | Copy-Item -Destination "Resources\ffmpeg.exe"
-
-          # 3. WebView2 Runtime Offline Installer كامل 120MB
           Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703&channel=stable&version=latest&architecture=x64&language=en" -OutFile "Resources\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
+
+      - name: Auto Fix MainWindow.xaml
+        shell: pwsh
+        run: |
+          # البيلد هو اللي هيصلح سطر 180 والـ xmlns
+          $xaml = Get-Content MainWindow.xaml -Raw
+
+          # 1. ضيف الـ xmlns لو مش موجود
+          if ($xaml -notlike '*xmlns:wpf=*') {
+            $xaml = $xaml -replace '<Window ', '<Window xmlns:wpf="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf" '
+          }
+
+          # 2. غير wv2: لـ wpf:
+          $xaml = $xaml -replace '<wv2:WebView2', '<wpf:WebView2'
+          $xaml = $xaml -replace '</wv2:WebView2>', '</wpf:WebView2>'
+
+          $xaml | Out-File MainWindow.xaml -Encoding UTF8
+
+      - name: Force EmbeddedResource in csproj
+        shell: pwsh
+        run: |
+          $csproj = Get-Content KSO.csproj -Raw
+          if ($csproj -notlike "*EmbeddedResource*") {
+            $csproj = $csproj -replace "</Project>", @"
+            <ItemGroup>
+              <EmbeddedResource Include="Resources\yt-dlp.exe" />
+              <EmbeddedResource Include="Resources\ffmpeg.exe" />
+              <EmbeddedResource Include="Resources\config.json" />
+              <EmbeddedResource Include="Resources\lang.json" />
+            </ItemGroup>
+          </Project>"@
+          }
+          $csproj | Out-File KSO.csproj -Encoding UTF8
 
       - name: Restore
         run: dotnet restore KSO.csproj
@@ -36,10 +70,7 @@ jobs:
       - name: Publish SelfContained
         shell: pwsh
         run: |
-          # SelfContained = كل الدوت نت 8 جوه. SingleFile = false عشان ميضربش مع EmbeddedResource
           dotnet publish KSO.csproj -c Release -r win-x64 -p:PublishSingleFile=false -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -o output\portable
-
-          # شلنا سطر Copy-Item بتاع Resources لاننا بنفك من AppData
 
       - name: Zip Portable
         run: Compress-Archive -Path output\portable\* -DestinationPath KSO-Portable-x64-Offline.zip
@@ -66,19 +97,12 @@ jobs:
           WizardStyle=modern
           SetupIconFile=Resources\icon.ico
           UninstallDisplayIcon={app}\KSO.exe
-
           [Files]
-          ; كل ملفات البرنامج من فولدر publish
           Source: "output\portable\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
-          ; WebView2 Offline Installer من فولدر Resources الاصلي
           Source: "Resources\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
-
           [Run]
-          ; تسطيب WebView2 في الصمت بدون نت
           Filename: "{tmp}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; Parameters: "/silent /install"; StatusMsg: "جاري تثبيت WebView2 Runtime..."; Flags: waituntilterminated
-          ; تشغيل البرنامج بعد التسطيب
           Filename: "{app}\KSO.exe"; Description: "تشغيل KSO الآن"; Flags: nowait postinstall skipifsilent
-
           [Icons]
           Name: "{group}\{#MyAppName}"; Filename: "{app}\KSO.exe"
           Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\KSO.exe"
