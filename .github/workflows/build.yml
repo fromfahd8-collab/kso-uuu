@@ -23,7 +23,7 @@ jobs:
           Get-ChildItem "ffmpeg_temp\ffmpeg-*\bin\ffmpeg.exe" | Copy-Item -Destination "Resources\ffmpeg.exe"
           Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "Resources\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
 
-      - name: CREATE csproj WITH CORRECT WEBVIEW2 REFERENCE
+      - name: CREATE csproj WITH CORRECT WEBVIEW2.WPF REFERENCE
         shell: pwsh
         run: |
           $csprojContent = @'
@@ -38,7 +38,7 @@ jobs:
               <ImplicitUsings>enable</ImplicitUsings>
             </PropertyGroup>
             <ItemGroup>
-              <PackageReference Include="Microsoft.WebView2" Version="1.0.4078.44" />
+              <PackageReference Include="Microsoft.WebView2.Wpf" Version="1.0.4078.44" />
               <PackageReference Include="Xceed.Wpf.Toolkit" Version="4.6.24151.1544" />
             </ItemGroup>
             <ItemGroup>
