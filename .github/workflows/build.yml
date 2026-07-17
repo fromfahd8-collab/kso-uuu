@@ -9,6 +9,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
@@ -70,11 +71,15 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: KSO-Builds
-          path: [KSO-Portable-x64.zip, KSO-Setup-x64.exe]
+          path: 
+            KSO-Portable-x64.zip
+            KSO-Setup-x64.exe
 
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: [KSO-Portable-x64.zip, KSO-Setup-x64.exe]
+          files: 
+            KSO-Portable-x64.zip
+            KSO-Setup-x64.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
