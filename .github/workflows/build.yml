@@ -78,7 +78,7 @@ jobs:
           $content = $content -replace '</WebView2>', '</wpf:WebView2>'
           $content | Out-File $xamlPath -Encoding UTF8
 
-      - name: Restore with nuget.org
+      - name: Restore AGAIN after adding packages
         run: dotnet restore KSO.csproj --source https://api.nuget.org/v3/index.json
 
       - name: Publish SelfContained
