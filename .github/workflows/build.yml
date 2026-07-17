@@ -9,7 +9,6 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
@@ -17,14 +16,7 @@ jobs:
       - name: Create NuGet.config
         shell: pwsh
         run: |
-          @"
-          <?xml version="1.0" encoding="utf-8"?>
-          <configuration>
-            <packageSources>
-              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
-            </packageSources>
-          </configuration>
-          "@ | Out-File NuGet.config -Encoding UTF8
+          @"<?xml version="1.0" encoding="utf-8"?><configuration><packageSources><add key="nuget.org" value="https://api.nuget.org/v3/index.json" /></packageSources></configuration>"@ | Out-File NuGet.config -Encoding UTF8
 
       - name: Download Offline Dependencies FULL
         shell: pwsh
@@ -34,34 +26,17 @@ jobs:
           Invoke-WebRequest "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile "ffmpeg.zip"
           Expand-Archive "ffmpeg.zip" "ffmpeg_temp"
           Get-ChildItem "ffmpeg_temp\ffmpeg-*\bin\ffmpeg.exe" | Copy-Item -Destination "Resources\ffmpeg.exe"
-
-          # نزل WebView2 Runtime كامل Offline 120MB
           Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "Resources\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
-          Write-Host "Downloaded Full WebView2 Runtime ~120MB"
 
-      - name: Force Add Packages to csproj - CORRECT NAMES
+      - name: Force Add Packages to csproj
         shell: pwsh
         run: |
           $csprojPath = "KSO.csproj"
           [xml]$csproj = Get-Content $csprojPath
           $itemGroup = $csproj.Project.ItemGroup | Where-Object { $_.PackageReference } | Select-Object -First 1
-          if (-not $itemGroup) {
-            $itemGroup = $csproj.CreateElement("ItemGroup", $csproj.Project.NamespaceURI)
-            $csproj.Project.InsertBefore($itemGroup, $csproj.Project.ItemGroup[0]) | Out-Null
-          }
-          $packages = @(
-            @{Name="Microsoft.Web.WebView2"; Version="1.0.3124.44"},
-            @{Name="Xceed.Wpf.Toolkit"; Version="4.6.24151.1544"}
-          )
-          foreach ($pkg in $packages) {
-            $exists = $itemGroup.PackageReference | Where-Object { $_.Include -eq $pkg.Name }
-            if (-not $exists) {
-              $pr = $csproj.CreateElement("PackageReference", $csproj.Project.NamespaceURI)
-              $pr.SetAttribute("Include", $pkg.Name)
-              $pr.SetAttribute("Version", $pkg.Version)
-              $itemGroup.AppendChild($pr) | Out-Null
-            }
-          }
+          if (-not $itemGroup) { $itemGroup = $csproj.CreateElement("ItemGroup", $csproj.Project.NamespaceURI); $csproj.Project.InsertBefore($itemGroup, $csproj.Project.ItemGroup[0]) | Out-Null }
+          $packages = @(@{Name="Microsoft.WebView2"; Version="1.0.3124.44"}, @{Name="Xceed.Wpf.Toolkit"; Version="4.6.24151.1544"})
+          foreach ($pkg in $packages) { $exists = $itemGroup.PackageReference | Where-Object { $_.Include -eq $pkg.Name }; if (-not $exists) { $pr = $csproj.CreateElement("PackageReference", $csproj.Project.NamespaceURI); $pr.SetAttribute("Include", $pkg.Name); $pr.SetAttribute("Version", $pkg.Version); $itemGroup.AppendChild($pr) | Out-Null } }
           $csproj.Save($csprojPath)
 
       - name: Force EmbeddedResource in csproj
@@ -70,31 +45,21 @@ jobs:
           $csprojPath = "KSO.csproj"
           [xml]$csproj = Get-Content $csprojPath
           $hasEmbedded = $csproj.Project.ItemGroup.EmbeddedResource | Where-Object { $_.Include -like "Resources*" }
-          if (-not $hasEmbedded) {
-            $newItemGroup = $csproj.CreateElement("ItemGroup", $csproj.Project.NamespaceURI)
-            $files = @("Resources\yt-dlp.exe", "Resources\ffmpeg.exe", "Resources\config.json", "Resources\lang.json")
-            foreach ($file in $files) {
-              $er = $csproj.CreateElement("EmbeddedResource", $csproj.Project.NamespaceURI)
-              $er.SetAttribute("Include", $file)
-              $newItemGroup.AppendChild($er) | Out-Null
-            }
-            $csproj.Project.AppendChild($newItemGroup) | Out-Null
-            $csproj.Save($csprojPath)
-          }
+          if (-not $hasEmbedded) { $newItemGroup = $csproj.CreateElement("ItemGroup", $csproj.Project.NamespaceURI); $files = @("Resources\yt-dlp.exe", "Resources\ffmpeg.exe", "Resources\config.json", "Resources\lang.json"); foreach ($file in $files) { $er = $csproj.CreateElement("EmbeddedResource", $csproj.Project.NamespaceURI); $er.SetAttribute("Include", $file); $newItemGroup.AppendChild($er) | Out-Null }; $csproj.Project.AppendChild($newItemGroup) | Out-Null; $csproj.Save($csprojPath) }
 
       - name: Restore with nuget.org
         run: dotnet restore KSO.csproj --source https://api.nuget.org/v3/index.json
 
-      - name: SAFE FIX MainWindow.xaml - FINAL
+      - name: FORCE FIX MainWindow.xaml
         shell: pwsh
         run: |
           $xamlPath = "MainWindow.xaml"
-          [xml]$xaml = Get-Content $xamlPath
-          if (-not $xaml.Window.GetAttribute("xmlns:wpf")) {
-            $xaml.Window.SetAttribute("xmlns:wpf", "clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf") # اتصلح
-          }
-          $xamlString = $xaml.OuterXml -replace 'wv2:WebView2', 'wpf:WebView2'
-          $xamlString | Out-File $xamlPath -Encoding UTF8
+          $content = Get-Content $xamlPath -Raw
+          if ($content -notlike '*xmlns:wpf=*') { $content = $content -replace '<Window ', '<Window xmlns:wpf="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf" ' }
+          $content = $content -replace 'wv2:WebView2', 'wpf:WebView2'
+          $content = $content -replace '<WebView2', '<wpf:WebView2'
+          $content = $content -replace '</WebView2>', '</wpf:WebView2>'
+          $content | Out-File $xamlPath -Encoding UTF8
 
       - name: Publish SelfContained
         shell: pwsh
@@ -105,55 +70,26 @@ jobs:
         run: |
           $portablePath = "output\portable"
           $sizeMB = (Get-ChildItem $portablePath -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
-          Write-Host "Total Portable Size: $([math]::Round($sizeMB,2)) MB"
-          if ($sizeMB -lt 70) { Write-Host "ERROR: Size too small" -ForegroundColor Red; exit 1 }
-          Write-Host "VERIFICATION PASSED!" -ForegroundColor Green
+          Write-Host "Total Portable Size: $(::Round($sizeMB,2)) MB"
+          if ($sizeMB -lt 70) { exit 1 }
 
       - name: Zip Portable
         run: Compress-Archive -Path output\portable\* -DestinationPath KSO-Portable-x64-Offline.zip
-
       - name: Install Inno
         run: choco install innosetup -y
-
       - name: Create Setup.exe with Inno - OFFLINE FULL
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
-          $iss = @"
-          #define MyAppName "KSO Download Turbo Ultra"
-          #define MyAppVersion "$version"
-          [Setup]
-          AppName={#MyAppName}
-          AppVersion={#MyAppVersion}
-          DefaultDirName={autopf}\KSO
-          DefaultGroupName=KSO
-          OutputBaseFilename=KSO-Setup-x64-Offline-Full
-          Compression=lzma2/ultra64
-          SolidCompression=yes
-          ArchitecturesInstallIn64BitMode=x64
-          WizardStyle=modern
-          SetupIconFile=Resources\icon.ico
-          UninstallDisplayIcon={app}\KSO.exe
-          [Files]
-          Source: "output\portable\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
-          Source: "Resources\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
-          [Run]
-          Filename: "{tmp}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; Parameters: "/silent /install"; StatusMsg: "جاري تثبيت WebView2 Runtime بدون نت..."; Flags: waituntilterminated
-          Filename: "{app}\KSO.exe"; Description: "تشغيل KSO الآن"; Flags: nowait postinstall skipifsilent
-          [Icons]
-          Name: "{group}\{#MyAppName}"; Filename: "{app}\KSO.exe"
-          Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\KSO.exe"
-          "@
+          $iss = @"#define MyAppName "KSO Download Turbo Ultra"`n#define MyAppVersion "$version"`n[Setup]`nAppName={#MyAppName}`nAppVersion={#MyAppVersion}`nDefaultDirName={autopf}\KSO`nDefaultGroupName=KSO`nOutputBaseFilename=KSO-Setup-x64-Offline-Full`nCompression=lzma2/ultra64`nSolidCompression=yes`nArchitecturesInstallIn64BitMode=x64`nWizardStyle=modern`nSetupIconFile=Resources\icon.ico`nUninstallDisplayIcon={app}\KSO.exe`n[Files]`nSource: "output\portable\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs`nSource: "Resources\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall`n[Run]`nFilename: "{tmp}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; Parameters: "/silent /install"; StatusMsg: "جاري تثبيت WebView2 Runtime بدون نت..."; Flags: waituntilterminated`nFilename: "{app}\KSO.exe"; Description: "تشغيل KSO الآن"; Flags: nowait postinstall skipifsilent`n[Icons]`nName: "{group}\{#MyAppName}"; Filename: "{app}\KSO.exe"`nName: "{commondesktop}\{#MyAppName}"; Filename: "{app}\KSO.exe""@
           $iss | Out-File setup.iss -Encoding UTF8
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup.iss
-
       - uses: actions/upload-artifact@v4
         with:
           name: KSO-Builds-Offline-Full
           path:
             KSO-Portable-x64-Offline.zip
             KSO-Setup-x64-Offline-Full.exe
-
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
