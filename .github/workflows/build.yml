@@ -36,13 +36,14 @@ jobs:
           Get-ChildItem "ffmpeg_temp\ffmpeg-*\bin\ffmpeg.exe" | Copy-Item -Destination "Resources\ffmpeg.exe"
           Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "Resources\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
 
-      - name: Force Add Packages to csproj
+      - name: Force Add Packages to csproj - FIXED NAME
         shell: pwsh
         run: |
           $csprojPath = "KSO.csproj"
           [xml]$csproj = Get-Content $csprojPath
           $itemGroup = $csproj.Project.ItemGroup | Where-Object { $_.PackageReference } | Select-Object -First 1
           if (-not $itemGroup) { $itemGroup = $csproj.CreateElement("ItemGroup", $csproj.Project.NamespaceURI); $csproj.Project.InsertBefore($itemGroup, $csproj.Project.ItemGroup[0]) | Out-Null }
+          # هنا التعديل: Microsoft.WebView2 صح
           $packages = @(@{Name="Microsoft.WebView2"; Version="1.0.3124.44"}, @{Name="Xceed.Wpf.Toolkit"; Version="4.6.24151.1544"})
           foreach ($pkg in $packages) { $exists = $itemGroup.PackageReference | Where-Object { $_.Include -eq $pkg.Name }; if (-not $exists) { $pr = $csproj.CreateElement("PackageReference", $csproj.Project.NamespaceURI); $pr.SetAttribute("Include", $pkg.Name); $pr.SetAttribute("Version", $pkg.Version); $itemGroup.AppendChild($pr) | Out-Null } }
           $csproj.Save($csprojPath)
@@ -52,13 +53,12 @@ jobs:
         run: |
           $xamlPath = "MainWindow.xaml"
           $content = Get-Content $xamlPath -Raw
-          # ده الاسم الصح من موقع مايكروسوفت
+          # XAML لسه بيستخدم Microsoft.WebView2.Wpf
           if ($content -notlike '*xmlns:wpf=*') { 
             $content = $content -replace '<Window ', '<Window xmlns:wpf="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf" ' 
           }
           $content = $content -replace '<WebView2', '<wpf:WebView2'
           $content = $content -replace '</WebView2>', '</wpf:WebView2>'
-          $content = $content -replace 'wv2:WebView2', 'wpf:WebView2'
           $content | Out-File $xamlPath -Encoding UTF8
 
       - name: Force EmbeddedResource in csproj
