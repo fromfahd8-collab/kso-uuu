@@ -50,7 +50,7 @@ jobs:
             $csproj.Project.InsertBefore($itemGroup, $csproj.Project.ItemGroup[0]) | Out-Null
           }
           $packages = @(
-            @{Name="Microsoft.Web.WebView2"; Version="1.0.3124.44"}, # الاسم الصح
+            @{Name="Microsoft.Web.WebView2"; Version="1.0.3124.44"},
             @{Name="Xceed.Wpf.Toolkit"; Version="4.6.24151.1544"}
           )
           foreach ($pkg in $packages) {
@@ -85,13 +85,13 @@ jobs:
       - name: Restore with nuget.org
         run: dotnet restore KSO.csproj --source https://api.nuget.org/v3/index.json
 
-      - name: SAFE FIX MainWindow.xaml
+      - name: SAFE FIX MainWindow.xaml - FINAL
         shell: pwsh
         run: |
           $xamlPath = "MainWindow.xaml"
           [xml]$xaml = Get-Content $xamlPath
           if (-not $xaml.Window.GetAttribute("xmlns:wpf")) {
-            $xaml.Window.SetAttribute("xmlns:wpf", "clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf") # الاسم اتغير
+            $xaml.Window.SetAttribute("xmlns:wpf", "clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf") # اتصلح
           }
           $xamlString = $xaml.OuterXml -replace 'wv2:WebView2', 'wpf:WebView2'
           $xamlString | Out-File $xamlPath -Encoding UTF8
@@ -107,6 +107,7 @@ jobs:
           $sizeMB = (Get-ChildItem $portablePath -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
           Write-Host "Total Portable Size: $([math]::Round($sizeMB,2)) MB"
           if ($sizeMB -lt 70) { Write-Host "ERROR: Size too small" -ForegroundColor Red; exit 1 }
+          Write-Host "VERIFICATION PASSED!" -ForegroundColor Green
 
       - name: Zip Portable
         run: Compress-Archive -Path output\portable\* -DestinationPath KSO-Portable-x64-Offline.zip
