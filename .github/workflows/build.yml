@@ -1,0 +1,80 @@
+name: Build KSO 64bit
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Download Dependencies
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "KSO\Resources"
+          Invoke-WebRequest "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "KSO\Resources\yt-dlp.exe"
+          Invoke-WebRequest "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile "ffmpeg.zip"
+          Expand-Archive "ffmpeg.zip" "ffmpeg_temp"
+          Get-ChildItem "ffmpeg_temp\ffmpeg-*\bin\ffmpeg.exe" | Copy-Item -Destination "KSO\Resources\ffmpeg.exe"
+          Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "KSO\Resources\MicrosoftEdgeWebview2Setup.exe"
+
+      - name: Restore
+        run: dotnet restore KSO/KSO.csproj
+
+      - name: Publish
+        shell: pwsh
+        run: dotnet publish KSO/KSO.csproj -c Release -r win-x64 -p:PublishSingleFile=true -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o output\portable
+
+      - name: Zip Portable
+        run: Compress-Archive -Path output\portable\* -DestinationPath KSO-Portable-x64.zip
+
+      - name: Install Inno
+        run: choco install innosetup -y
+
+      - name: Create Setup.exe with Inno
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $iss = @"
+          #define MyAppName "KSO Download Turbo Ultra"
+          #define MyAppVersion "$version"
+          [Setup]
+          AppName={#MyAppName}
+          AppVersion={#MyAppVersion}
+          DefaultDirName={autopf}\KSO
+          DefaultGroupName=KSO
+          OutputBaseFilename=KSO-Setup-x64
+          Compression=lzma2/ultra64
+          SolidCompression=yes
+          ArchitecturesInstallIn64BitMode=x64
+          WizardStyle=modern
+          [Files]
+          Source: "output\portable\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+          Source: "KSO\Resources\*"; DestDir: "{app}\Resources"; Flags: ignoreversion recursesubdirs
+          Source: "KSO\Resources\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
+          [Run]
+          Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "جاري تثبيت WebView2 Runtime..."; Flags: waituntilterminated
+          Filename: "{app}\KSO.exe"; Description: "تشغيل KSO الآن"; Flags: nowait postinstall skipifsilent
+          [Icons]
+          Name: "{group}\{#MyAppName}"; Filename: "{app}\KSO.exe"
+          Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\KSO.exe"
+          "@
+          $iss | Out-File setup.iss -Encoding UTF8
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KSO-Builds
+          path: [KSO-Portable-x64.zip, KSO-Setup-x64.exe]
+
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: [KSO-Portable-x64.zip, KSO-Setup-x64.exe]
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
