@@ -24,12 +24,34 @@ jobs:
           Get-ChildItem "ffmpeg_temp\ffmpeg-*\bin\ffmpeg.exe" | Copy-Item -Destination "Resources\ffmpeg.exe"
           Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703&channel=stable&version=latest&architecture=x64&language=en" -OutFile "Resources\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
 
-      - name: Add Missing NuGet Packages
+      - name: Force Add Packages to csproj
         shell: pwsh
         run: |
-          dotnet add KSO.csproj package Microsoft.WebView2 --version 1.0.3124.44
-          dotnet add KSO.csproj package Microsoft.WebView2.Wpf --version 1.0.3124.44
-          dotnet add KSO.csproj package Xceed.Wpf.Toolkit --version 4.6.24151.1544
+          $csprojPath = "KSO.csproj"
+          [xml]$csproj = Get-Content $csprojPath
+
+          $itemGroup = $csproj.Project.ItemGroup | Where-Object { $_.PackageReference } | Select-Object -First 1
+          if (-not $itemGroup) {
+            $itemGroup = $csproj.CreateElement("ItemGroup", $csproj.Project.NamespaceURI)
+            $csproj.Project.InsertBefore($itemGroup, $csproj.Project.ItemGroup[0]) | Out-Null
+          }
+
+          $packages = @(
+            @{Name="Microsoft.WebView2"; Version="1.0.3124.44"},
+            @{Name="Microsoft.WebView2.Wpf"; Version="1.0.3124.44"},
+            @{Name="Xceed.Wpf.Toolkit"; Version="4.6.24151.1544"}
+          )
+
+          foreach ($pkg in $packages) {
+            $exists = $itemGroup.PackageReference | Where-Object { $_.Include -eq $pkg.Name }
+            if (-not $exists) {
+              $pr = $csproj.CreateElement("PackageReference", $csproj.Project.NamespaceURI)
+              $pr.SetAttribute("Include", $pkg.Name)
+              $pr.SetAttribute("Version", $pkg.Version)
+              $itemGroup.AppendChild($pr) | Out-Null
+            }
+          }
+          $csproj.Save($csprojPath)
 
       - name: Force EmbeddedResource in csproj
         shell: pwsh
@@ -52,27 +74,25 @@ jobs:
       - name: Restore
         run: dotnet restore KSO.csproj
 
-      - name: FIX MainWindow.xaml - Only Line 180
+      - name: SAFE FIX MainWindow.xaml
         shell: pwsh
         run: |
           $xamlPath = "MainWindow.xaml"
-          $lines = Get-Content $xamlPath
-          
-          # 1. شوف لو xmlns:wpf ناقص وضيفه في اول سطر Window
-          $windowLine = $lines | Select-String '<Window' | Select-Object -First 1
-          if ($windowLine -and $windowLine.Line -notlike '*xmlns:wpf=*') {
-            $newLine = $windowLine.Line -replace '<Window ', '<Window xmlns:wpf="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf" '
-            $lines[$windowLine.LineNumber - 1] = $newLine
+          [xml]$xaml = Get-Content $xamlPath
+
+          # 1. ضيف xmlns:wpf لو مش موجود في Window
+          $ns = New-Object System.XmlAttribute "xmlns:wpf", "http://www.w3.org/2000/xmlns/"
+          $ns.Value = "clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf"
+          if (-not $xaml.Window.GetAttribute("xmlns:wpf")) {
+            $xaml.Window.SetAttribute("xmlns:wpf", $ns.Value)
           }
-          
-          # 2. عدل سطر 180 بس: غير wv2: لـ wpf:
-          if ($lines.Count -ge 180) {
-            $lines[179] = $lines[179] -replace '<wv2:WebView2', '<wpf:WebView2'
-            $lines[179] = $lines[179] -replace '</wv2:WebView2>', '</wpf:WebView2>'
-          }
-          
-          $lines | Out-File $xamlPath -Encoding UTF8
-          Write-Host "Fixed xmlns and line 180 only. Rest of XAML untouched."
+
+          # 2. دور على WebView2 وغير wv2: لـ wpf: في اي مكان
+          $xamlString = $xaml.OuterXml
+          $xamlString = $xamlString -replace 'wv2:WebView2', 'wpf:WebView2'
+
+          $xamlString | Out-File $xamlPath -Encoding UTF8
+          Write-Host "Fixed XAML safely"
 
       - name: Publish SelfContained
         shell: pwsh
