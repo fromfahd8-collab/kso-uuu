@@ -1,0 +1,18 @@
+{
+  "DownloadPath": "C:\\Users\\YourUser\\Downloads",
+  "MaxThreads": 1000000,
+  "ShutdownOnComplete": false,
+  "Language": "ar",
+  "Password": "",
+  "HideOnMinimize": false,
+  "ScheduleTime": null,
+  "SpeedLimitKB": 0,
+  "Proxy": "",
+  "SmartMode": false,
+  "AutoCompress": true,
+  "CompressMode": "Balanced",
+  "DeleteOriginal": true,
+  "NoDuplicate": true,
+  "Quality": "1080p",
+  "WelcomeShown": false
+}
