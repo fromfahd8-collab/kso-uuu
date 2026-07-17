@@ -1,4 +1,4 @@
-name: Build KSO 64bit
+name: Build KSO 64bit Offline
 on:
   push:
     tags: ['v*']
@@ -9,35 +9,51 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Download Dependencies
+      - name: Download Offline Dependencies
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path "KSO\Resources"
-          Invoke-WebRequest "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "KSO\Resources\yt-dlp.exe"
+          New-Item -ItemType Directory -Force -Path "Resources"
+
+          # 1. yt-dlp
+          Invoke-WebRequest "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "Resources\yt-dlp.exe"
+
+          # 2. ffmpeg
           Invoke-WebRequest "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile "ffmpeg.zip"
           Expand-Archive "ffmpeg.zip" "ffmpeg_temp"
-          Get-ChildItem "ffmpeg_temp\ffmpeg-*\bin\ffmpeg.exe" | Copy-Item -Destination "KSO\Resources\ffmpeg.exe"
-          Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "KSO\Resources\MicrosoftEdgeWebview2Setup.exe"
+          Get-ChildItem "ffmpeg_temp\ffmpeg-*\bin\ffmpeg.exe" | Copy-Item -Destination "Resources\ffmpeg.exe"
+
+          # 3. WebView2 Runtime Offline Installer كامل 120MB
+          Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703&channel=stable&version=latest&architecture=x64&language=en" -OutFile "Resources\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
 
       - name: Restore
-        run: dotnet restore KSO/KSO.csproj
+        run: dotnet restore KSO.csproj
 
-      - name: Publish
+      - name: Publish SelfContained
         shell: pwsh
-        run: dotnet publish KSO/KSO.csproj -c Release -r win-x64 -p:PublishSingleFile=true -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o output\portable
+        run: |
+          # SelfContained =.NET 8 كله جوه الملفات. مش محتاج اليوزر يسطب دوت نت
+          dotnet publish KSO.csproj -c Release -r win-x64 -p:PublishSingleFile=false -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -o output\portable
+
+          # ننقل كل حاجة من الريبو: Resources + Modules + اي حاجة تانية
+          Copy-Item -Path "Resources\*" -Destination "output\portable\Resources\" -Recurse -Force
+
+          # لو عندك فولدر Modules بره المشروع وعايز تنسخه يدوي
+          if (Test-Path "Modules") {
+            Copy-Item -Path "Modules" -Destination "output\portable\" -Recurse -Force
+          }
 
       - name: Zip Portable
-        run: Compress-Archive -Path output\portable\* -DestinationPath KSO-Portable-x64.zip
+        run: Compress-Archive -Path output\portable\* -DestinationPath KSO-Portable-x64-Offline.zip
 
       - name: Install Inno
         run: choco install innosetup -y
 
-      - name: Create Setup.exe with Inno
+      - name: Create Setup.exe with Inno - Offline
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
@@ -49,18 +65,26 @@ jobs:
           AppVersion={#MyAppVersion}
           DefaultDirName={autopf}\KSO
           DefaultGroupName=KSO
-          OutputBaseFilename=KSO-Setup-x64
+          OutputBaseFilename=KSO-Setup-x64-Offline
           Compression=lzma2/ultra64
           SolidCompression=yes
           ArchitecturesInstallIn64BitMode=x64
           WizardStyle=modern
+          SetupIconFile=Resources\icon.ico
+          UninstallDisplayIcon={app}\KSO.exe
+
           [Files]
+          ; كل ملفات البرنامج
           Source: "output\portable\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
-          Source: "KSO\Resources\*"; DestDir: "{app}\Resources"; Flags: ignoreversion recursesubdirs
-          Source: "KSO\Resources\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
+          ; WebView2 Offline Installer
+          Source: "Resources\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
+
           [Run]
-          Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "جاري تثبيت WebView2 Runtime..."; Flags: waituntilterminated
+          ; تسطيب WebView2 في الصمت بدون نت
+          Filename: "{tmp}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; Parameters: "/silent /install"; StatusMsg: "جاري تثبيت WebView2 Runtime..."; Flags: waituntilterminated
+          ; تشغيل البرنامج بعد التسطيب
           Filename: "{app}\KSO.exe"; Description: "تشغيل KSO الآن"; Flags: nowait postinstall skipifsilent
+
           [Icons]
           Name: "{group}\{#MyAppName}"; Filename: "{app}\KSO.exe"
           Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\KSO.exe"
@@ -70,16 +94,16 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: KSO-Builds
-          path: 
-            KSO-Portable-x64.zip
-            KSO-Setup-x64.exe
+          name: KSO-Builds-Offline
+          path:
+            KSO-Portable-x64-Offline.zip
+            KSO-Setup-x64-Offline.exe
 
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: 
-            KSO-Portable-x64.zip
-            KSO-Setup-x64.exe
+          files:
+            KSO-Portable-x64-Offline.zip
+            KSO-Setup-x64-Offline.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
