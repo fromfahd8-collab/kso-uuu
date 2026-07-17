@@ -17,7 +17,15 @@ jobs:
       - name: Create NuGet.config
         shell: pwsh
         run: |
-          @"<?xml version="1.0" encoding="utf-8"?><configuration><packageSources><add key="nuget.org" value="https://api.nuget.org/v3/index.json" /></packageSources></configuration>"@ | Out-File NuGet.config -Encoding UTF8
+          $nuget = @'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+            </packageSources>
+          </configuration>
+          '@
+          $nuget | Out-File NuGet.config -Encoding UTF8
 
       - name: Download Offline Dependencies FULL
         shell: pwsh
@@ -62,7 +70,6 @@ jobs:
           $content = $content -replace '<WebView2', '<wpf:WebView2'
           $content = $content -replace '</WebView2>', '</wpf:WebView2>'
           $content | Out-File $xamlPath -Encoding UTF8
-          Write-Host "XAML Fixed"
 
       - name: Publish SelfContained
         shell: pwsh
