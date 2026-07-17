@@ -26,7 +26,7 @@
                    HorizontalAlignment="Center" Margin="5" FontFamily="Segoe UI Black"/>
 
         <!-- شريط الأدوات -->
-        <ToolBar Grid.Row="1" Margin="2" WrapPanel.IsWrapEnabled="True">
+        <ToolBar Grid.Row="1" Margin="2">
             <Button x:Name="btnLang" Content="AR/EN" Click="BtnLang_Click" />
             <Separator/>
             <Label x:Name="lblQuality" Content="{x:Static lang:Lang.Quality}" />
