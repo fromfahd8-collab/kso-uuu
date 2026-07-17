@@ -34,35 +34,47 @@ jobs:
       - name: Auto Fix MainWindow.xaml
         shell: pwsh
         run: |
-          # البيلد هو اللي هيصلح سطر 180 والـ xmlns
-          $xaml = Get-Content MainWindow.xaml -Raw
-
-          # 1. ضيف الـ xmlns لو مش موجود
+          $xamlPath = "MainWindow.xaml"
+          $xaml = Get-Content $xamlPath -Raw
+          
+          # 1. ضيف xmlns:wpf لو مش موجود
           if ($xaml -notlike '*xmlns:wpf=*') {
             $xaml = $xaml -replace '<Window ', '<Window xmlns:wpf="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf" '
           }
-
+          
           # 2. غير wv2: لـ wpf:
           $xaml = $xaml -replace '<wv2:WebView2', '<wpf:WebView2'
           $xaml = $xaml -replace '</wv2:WebView2>', '</wpf:WebView2>'
-
-          $xaml | Out-File MainWindow.xaml -Encoding UTF8
+          
+          # 3. صلح WrapPanel.IsWrapEnabled
+          $xaml = $xaml -replace 'WrapPanel.IsWrapEnabled="True"', ''
+          
+          $xaml | Out-File $xamlPath -Encoding UTF8
+          Write-Host "Fixed MainWindow.xaml"
 
       - name: Force EmbeddedResource in csproj
         shell: pwsh
         run: |
-          $csproj = Get-Content KSO.csproj -Raw
-          if ($csproj -notlike "*EmbeddedResource*") {
-            $csproj = $csproj -replace "</Project>", @"
-            <ItemGroup>
-              <EmbeddedResource Include="Resources\yt-dlp.exe" />
-              <EmbeddedResource Include="Resources\ffmpeg.exe" />
-              <EmbeddedResource Include="Resources\config.json" />
-              <EmbeddedResource Include="Resources\lang.json" />
-            </ItemGroup>
-          </Project>"@
+          $csprojPath = "KSO.csproj"
+          [xml]$csproj = Get-Content $csprojPath
+          
+          $hasEmbedded = $csproj.Project.ItemGroup.EmbeddedResource | Where-Object { $_.Include -like "Resources*" }
+          
+          if (-not $hasEmbedded) {
+            $newItemGroup = $csproj.CreateElement("ItemGroup", $csproj.Project.NamespaceURI)
+            
+            $files = @("Resources\yt-dlp.exe", "Resources\ffmpeg.exe", "Resources\config.json", "Resources\lang.json")
+            foreach ($file in $files) {
+              $er = $csproj.CreateElement("EmbeddedResource", $csproj.Project.NamespaceURI)
+              $er.SetAttribute("Include", $file)
+              $newItemGroup.AppendChild($er) | Out-Null
+            }
+            $csproj.Project.AppendChild($newItemGroup) | Out-Null
+            $csproj.Save($csprojPath)
+            Write-Host "Added EmbeddedResource to csproj"
+          } else {
+            Write-Host "EmbeddedResource already exists"
           }
-          $csproj | Out-File KSO.csproj -Encoding UTF8
 
       - name: Restore
         run: dotnet restore KSO.csproj
