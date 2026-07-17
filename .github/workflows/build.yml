@@ -36,47 +36,46 @@ jobs:
           Get-ChildItem "ffmpeg_temp\ffmpeg-*\bin\ffmpeg.exe" | Copy-Item -Destination "Resources\ffmpeg.exe"
           Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "Resources\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
 
-      - name: FORCE REWRITE csproj PACKAGES
+      - name: NUKE AND REWRITE csproj COMPLETELY
         shell: pwsh
         run: |
-          $csprojPath = "KSO.csproj"
-          [xml]$csproj = Get-Content $csprojPath
-          # نمسح كل PackageReference القديمة بتاعت WebView2
-          $nodesToRemove = $csproj.SelectNodes("//PackageReference[contains(@Include,'WebView')]")
-          foreach($node in $nodesToRemove){ $node.ParentNode.RemoveChild($node) }
-          # نضيف الجديدة الصح
-          $itemGroup = $csproj.CreateElement("ItemGroup", $csproj.Project.NamespaceURI)
-          $pr1 = $csproj.CreateElement("PackageReference", $csproj.Project.NamespaceURI)
-          $pr1.SetAttribute("Include", "Microsoft.WebView2")
-          $pr1.SetAttribute("Version", "1.0.3124.44")
-          $itemGroup.AppendChild($pr1)
-          $pr2 = $csproj.CreateElement("PackageReference", $csproj.Project.NamespaceURI)
-          $pr2.SetAttribute("Include", "Xceed.Wpf.Toolkit")
-          $pr2.SetAttribute("Version", "4.6.24151.1544")
-          $itemGroup.AppendChild($pr2)
-          $csproj.Project.AppendChild($itemGroup)
-          $csproj.Save($csprojPath)
-          Write-Host "csproj Rewritten"
+          $csprojContent = @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>WinExe</OutputType>
+              <TargetFramework>net8.0-windows</TargetFramework>
+              <UseWPF>true</UseWPF>
+              <UseWindowsForms>true</UseWindowsForms>
+              <PlatformTarget>x64</PlatformTarget>
+              <Nullable>enable</Nullable>
+              <ImplicitUsings>enable</ImplicitUsings>
+            </PropertyGroup>
+            <ItemGroup>
+              <PackageReference Include="Microsoft.WebView2" Version="1.0.3124.44" />
+              <PackageReference Include="Xceed.Wpf.Toolkit" Version="4.6.24151.1544" />
+            </ItemGroup>
+            <ItemGroup>
+              <EmbeddedResource Include="Resources\yt-dlp.exe" />
+              <EmbeddedResource Include="Resources\ffmpeg.exe" />
+              <EmbeddedResource Include="Resources\config.json" />
+              <EmbeddedResource Include="Resources\lang.json" />
+            </ItemGroup>
+          </Project>
+          '@
+          $csprojContent | Out-File "KSO.csproj" -Encoding UTF8 -Force
+          Write-Host "csproj Nuked and Rewritten"
 
-      - name: FORCE FIX MainWindow.xaml BEFORE RESTORE
+      - name: FORCE FIX MainWindow.xaml
         shell: pwsh
         run: |
           $xamlPath = "MainWindow.xaml"
           $content = Get-Content $xamlPath -Raw
           if ($content -notlike '*xmlns:wpf=*') { 
-            $content = $content -replace '<Window ', '<Window xmlns:wpf="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf" ' 
+            $content = $content -replace '<Window ', '<Window xmlns:wpf="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf" ' 
           }
           $content = $content -replace '<WebView2', '<wpf:WebView2'
           $content = $content -replace '</WebView2>', '</wpf:WebView2>'
           $content | Out-File $xamlPath -Encoding UTF8
-
-      - name: Force EmbeddedResource in csproj
-        shell: pwsh
-        run: |
-          $csprojPath = "KSO.csproj"
-          [xml]$csproj = Get-Content $csprojPath
-          $hasEmbedded = $csproj.Project.ItemGroup.EmbeddedResource | Where-Object { $_.Include -like "Resources*" }
-          if (-not $hasEmbedded) { $newItemGroup = $csproj.CreateElement("ItemGroup", $csproj.Project.NamespaceURI); $files = @("Resources\yt-dlp.exe", "Resources\ffmpeg.exe", "Resources\config.json", "Resources\lang.json"); foreach ($file in $files) { $er = $csproj.CreateElement("EmbeddedResource", $csproj.Project.NamespaceURI); $er.SetAttribute("Include", $file); $newItemGroup.AppendChild($er) | Out-Null }; $csproj.Project.AppendChild($newItemGroup) | Out-Null; $csproj.Save($csprojPath) }
 
       - name: Restore with nuget.org
         run: dotnet restore KSO.csproj --source https://api.nuget.org/v3/index.json
