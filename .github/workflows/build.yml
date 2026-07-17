@@ -14,6 +14,17 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Create NuGet.config
+        shell: pwsh
+        run: |
+          @"
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+            </configuration>
+          "@ | Out-File NuGet.config -Encoding UTF8
+
       - name: Download Offline Dependencies
         shell: pwsh
         run: |
@@ -71,8 +82,8 @@ jobs:
             $csproj.Save($csprojPath)
           }
 
-      - name: Restore
-        run: dotnet restore KSO.csproj
+      - name: Restore with nuget.org
+        run: dotnet restore KSO.csproj --source https://api.nuget.org/v3/index.json
 
       - name: SAFE FIX MainWindow.xaml
         shell: pwsh
@@ -80,19 +91,14 @@ jobs:
           $xamlPath = "MainWindow.xaml"
           [xml]$xaml = Get-Content $xamlPath
 
-          # 1. ضيف xmlns:wpf لو مش موجود في Window
-          $ns = New-Object System.XmlAttribute "xmlns:wpf", "http://www.w3.org/2000/xmlns/"
-          $ns.Value = "clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf"
           if (-not $xaml.Window.GetAttribute("xmlns:wpf")) {
-            $xaml.Window.SetAttribute("xmlns:wpf", $ns.Value)
+            $xaml.Window.SetAttribute("xmlns:wpf", "clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf")
           }
 
-          # 2. دور على WebView2 وغير wv2: لـ wpf: في اي مكان
           $xamlString = $xaml.OuterXml
           $xamlString = $xamlString -replace 'wv2:WebView2', 'wpf:WebView2'
 
           $xamlString | Out-File $xamlPath -Encoding UTF8
-          Write-Host "Fixed XAML safely"
 
       - name: Publish SelfContained
         shell: pwsh
