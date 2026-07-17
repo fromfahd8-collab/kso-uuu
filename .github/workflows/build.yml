@@ -36,16 +36,10 @@ jobs:
       - name: Publish SelfContained
         shell: pwsh
         run: |
-          # SelfContained =.NET 8 كله جوه الملفات. مش محتاج اليوزر يسطب دوت نت
+          # SelfContained = كل الدوت نت 8 جوه. SingleFile = false عشان ميضربش مع EmbeddedResource
           dotnet publish KSO.csproj -c Release -r win-x64 -p:PublishSingleFile=false -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -o output\portable
 
-          # ننقل كل حاجة من الريبو: Resources + Modules + اي حاجة تانية
-          Copy-Item -Path "Resources\*" -Destination "output\portable\Resources\" -Recurse -Force
-
-          # لو عندك فولدر Modules بره المشروع وعايز تنسخه يدوي
-          if (Test-Path "Modules") {
-            Copy-Item -Path "Modules" -Destination "output\portable\" -Recurse -Force
-          }
+          # شلنا سطر Copy-Item بتاع Resources لاننا بنفك من AppData
 
       - name: Zip Portable
         run: Compress-Archive -Path output\portable\* -DestinationPath KSO-Portable-x64-Offline.zip
@@ -74,9 +68,9 @@ jobs:
           UninstallDisplayIcon={app}\KSO.exe
 
           [Files]
-          ; كل ملفات البرنامج
+          ; كل ملفات البرنامج من فولدر publish
           Source: "output\portable\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
-          ; WebView2 Offline Installer
+          ; WebView2 Offline Installer من فولدر Resources الاصلي
           Source: "Resources\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
           [Run]
