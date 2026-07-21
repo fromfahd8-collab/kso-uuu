@@ -28,10 +28,12 @@ jobs:
           
           Write-Host "Downloading WebView2 Runtime with winget..."
           winget install Microsoft.EdgeWebView2Runtime --silent --accept-package-agreements --accept-source-agreements
-          Start-Sleep -Seconds 10
+          Start-Sleep -Seconds 15
           $wvPath = Get-ChildItem "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           Copy-Item "$($wvPath.FullName)\*" -Destination "Resources\WebView2Runtime" -Recurse -Force
           
+          Write-Host "Copying icon.ico from repo..."
+          Copy-Item "icon.ico" -Destination "icon.ico" -ErrorAction SilentlyContinue
           Copy-Item "Resources\icon.ico" -Destination "icon.ico" -ErrorAction SilentlyContinue
 
       - name: VERIFY FILES IN RESOURCES
@@ -39,6 +41,8 @@ jobs:
         run: |
           Write-Host "=== FILES IN RESOURCES ==="
           Get-ChildItem "Resources" -Recurse | Select-Object FullName, Length
+          Write-Host "=== ROOT FILES ==="
+          Get-ChildItem "icon.ico" -ErrorAction SilentlyContinue
 
       - name: CREATE csproj WITH ALL RESOURCES EMBEDDED
         shell: pwsh
@@ -56,9 +60,10 @@ jobs:
               <PublishSingleFile>true</PublishSingleFile>
               <SelfContained>true</SelfContained>
               <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+              <ApplicationIcon>icon.ico</ApplicationIcon>
             </PropertyGroup>
             <ItemGroup>
-              <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" />
+              <PackageReference Include="Microsoft.WebView2" Version="1.0.4078.44" />
               <PackageReference Include="Xceed.Wpf.Toolkit" Version="4.6.24151.1544" />
             </ItemGroup>
             <ItemGroup>
@@ -77,7 +82,7 @@ jobs:
           $xamlPath = "MainWindow.xaml"
           $content = Get-Content $xamlPath -Raw
           if ($content -notlike '*xmlns:wv2=*') {
-            $content = $content -replace '<Window ', '<Window xmlns:wv2="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf" '
+            $content = $content -replace '<Window ', '<Window xmlns:wv2="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf" '
           }
           $content = $content -replace '<WebView2', '<wv2:WebView2'
           $content = $content -replace '</WebView2>', '</wv2:WebView2>'
