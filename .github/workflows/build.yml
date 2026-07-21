@@ -26,9 +26,11 @@ jobs:
           Expand-Archive "ffmpeg.zip" "ffmpeg_temp" -Force
           Get-ChildItem "ffmpeg_temp\ffmpeg-*\bin\ffmpeg.exe" | Copy-Item -Destination "Resources\ffmpeg.exe"
           
-          Write-Host "Downloading WebView2 Runtime..."
-          Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703&channel=stable&version=1.0.4078.44&distribution=win_x64" -OutFile "WebView2.zip" -UseBasicParsing
-          Expand-Archive "WebView2.zip" "Resources\WebView2Runtime" -Force
+          Write-Host "Downloading WebView2 Runtime with winget..."
+          winget install Microsoft.EdgeWebView2Runtime --silent --accept-package-agreements --accept-source-agreements
+          Start-Sleep -Seconds 10
+          $wvPath = Get-ChildItem "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          Copy-Item "$($wvPath.FullName)\*" -Destination "Resources\WebView2Runtime" -Recurse -Force
           
           Copy-Item "Resources\icon.ico" -Destination "icon.ico" -ErrorAction SilentlyContinue
 
