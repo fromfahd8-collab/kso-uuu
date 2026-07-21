@@ -1,4 +1,4 @@
-name: Build KSO 64bit Offline Full
+name: Build KSO 64bit Offline Full SingleFile + Browser
 on:
   push:
     tags: ['v*']
@@ -13,17 +13,26 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Download Offline Dependencies FULL
+      - name: Download Offline Dependencies FULL + WebView2 Fixed
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "Resources"
           Invoke-WebRequest "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "Resources\yt-dlp.exe"
           Invoke-WebRequest "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile "ffmpeg.zip"
-          Expand-Archive "ffmpeg.zip" "ffmpeg_temp"
+          Expand-Archive "ffmpeg.zip" "ffmpeg_temp" -Force
           Get-ChildItem "ffmpeg_temp\ffmpeg-*\bin\ffmpeg.exe" | Copy-Item -Destination "Resources\ffmpeg.exe"
-          Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "Resources\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
 
-      - name: CREATE csproj WITHOUT WEBVIEW2 PACKAGE
+          Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703&channel=stable&version=1.0.4078.44&distribution=win_x64" -OutFile "WebView2.zip"
+          Expand-Archive "WebView2.zip" "Resources\WebView2Runtime" -Force
+          Copy-Item "Resources\icon.ico" -Destination "icon.ico" -ErrorAction SilentlyContinue
+
+      - name: VERIFY FILES IN RESOURCES
+        shell: pwsh
+        run: |
+          Write-Host "=== FILES IN RESOURCES ==="
+          Get-ChildItem "Resources" -Recurse | Select-Object FullName, Length
+
+      - name: CREATE csproj WITH ALL RESOURCES EMBEDDED
         shell: pwsh
         run: |
           $csprojContent = @'
@@ -36,85 +45,142 @@ jobs:
               <PlatformTarget>x64</PlatformTarget>
               <Nullable>enable</Nullable>
               <ImplicitUsings>enable</ImplicitUsings>
+              <PublishSingleFile>true</PublishSingleFile>
+              <SelfContained>true</SelfContained>
+              <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
             </PropertyGroup>
             <ItemGroup>
+              <PackageReference Include="Microsoft.WebView2" Version="1.0.4078.44" />
               <PackageReference Include="Xceed.Wpf.Toolkit" Version="4.6.24151.1544" />
             </ItemGroup>
             <ItemGroup>
-              <EmbeddedResource Include="Resources\yt-dlp.exe" />
-              <EmbeddedResource Include="Resources\ffmpeg.exe" />
-              <EmbeddedResource Include="Resources\config.json" />
-              <EmbeddedResource Include="Resources\lang.json" />
+              <EmbeddedResource Include="Resources\**" Exclude="Resources\WebView2Runtime\**" />
+              <Content Include="Resources\WebView2Runtime\**">
+                <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+              </Content>
             </ItemGroup>
           </Project>
           '@
           $csprojContent | Out-File "KSO.csproj" -Encoding UTF8 -Force
 
-      - name: FIX MainWindow.xaml FOR WEBVIEW2
+      - name: AUTO FIX MainWindow.xaml FOR WEBVIEW2
         shell: pwsh
         run: |
           $xamlPath = "MainWindow.xaml"
           $content = Get-Content $xamlPath -Raw
-          if ($content -notlike '*xmlns:wpf=*') {
-            $content = $content -replace '<Window ', '<Window xmlns:wpf="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf" '
+          if ($content -notlike '*xmlns:wv2=*') {
+            $content = $content -replace '<Window ', '<Window xmlns:wv2="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf" '
           }
-          $content = $content -replace '<WebView2', '<wpf:WebView2'
-          $content = $content -replace '</WebView2>', '</wpf:WebView2>'
+          $content = $content -replace '<WebView2', '<wv2:WebView2'
+          $content = $content -replace '</WebView2>', '</wv2:WebView2>'
+          if ($content -notlike '*wv2:WebView2*') {
+            $content = $content -replace '</Window>', '<wv2:WebView2 Name="webView" />`n</Window>'
+          }
           $content | Out-File $xamlPath -Encoding UTF8
+
+      - name: AUTO PATCH MainWindow.xaml.cs FOR OFFLINE WEBVIEW2
+        shell: pwsh
+        run: |
+          $csPath = "MainWindow.xaml.cs"
+          $content = Get-Content $csPath -Raw
+          if ($content -notlike '*using Microsoft.WebView2.Core;*') {
+            $content = "using Microsoft.WebView2.Core;`nusing System.IO;`nusing System.Threading.Tasks;`n" + $content
+          }
+          $initCode = @'
+
+          private async Task InitializeWebView2Offline()
+          {
+              try
+              {
+                  string webViewPath = Path.Combine(AppContext.BaseDirectory, "WebView2Runtime");
+                  var env = await CoreWebView2Environment.CreateAsync(webViewPath);
+                  if (webView != null)
+                      await webView.EnsureCoreWebView2Async(env);
+              }
+              catch {}
+          }
+          '@
+          if ($content -notlike '*InitializeWebView2Offline*') {
+            $content = $content -replace '(public MainWindow\(\)\s*\{)', '$1`nInitializeWebView2Offline();'
+            $content = $content -replace '(\})(\s*$)', "$initCode`n`$1"
+          }
+          $content | Out-File $csPath -Encoding UTF8 -Force
 
       - name: Restore
         run: dotnet restore KSO.csproj --source https://api.nuget.org/v3/index.json
 
-      - name: Publish SelfContained
+      - name: Publish SingleFile SelfContained
         shell: pwsh
-        run: dotnet publish KSO.csproj -c Release -r win-x64 -p:PublishSingleFile=false -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -o output\portable
+        run: dotnet publish KSO.csproj -c Release -r win-x64 -o output
 
-      - name: Zip Portable
-        run: Compress-Archive -Path output\portable\* -DestinationPath KSO-Portable-x64-Offline.zip
+      - name: VERIFY OUTPUT FILES BEFORE RENAME
+        shell: pwsh
+        run: |
+          Write-Host "=== OUTPUT FOLDER CONTENT ==="
+          Get-ChildItem "output" -Recurse
+          Write-Host "=== CHECKING KSO.EXE ==="
+          if (Test-Path "output\KSO.exe") { Write-Host "EXE OK" } else { Write-Host "EXE MISSING!" }
+
+      - name: Rename EXE
+        shell: pwsh
+        run: Rename-Item "output\KSO.exe" "KSO-Download-Turbo-Ultra-V1PRO.exe"
+
+      - name: VERIFY OUTPUT FILES AFTER RENAME
+        shell: pwsh
+        run: |
+          Write-Host "=== CHECKING FINAL EXE NAME ==="
+          if (Test-Path "output\KSO-Download-Turbo-Ultra-V1PRO.exe") { Write-Host "RENAME OK" } else { Write-Host "RENAME FAILED!" }
+
+      - name: Zip SingleFile EXE + Runtime
+        shell: pwsh
+        run: Compress-Archive -Path "output\KSO-Download-Turbo-Ultra-V1PRO.exe","output\WebView2Runtime" -DestinationPath "KSO-Download-Turbo-Ultra-V1PRO.zip"
+
       - name: Install Inno
         run: choco install innosetup -y
+
       - name: Create Setup.exe with Inno - OFFLINE FULL
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
           $iss = @"
-          #define MyAppName "KSO Download Turbo Ultra"
+          #define MyAppName "KSO Download Turbo Ultra V1PRO"
           #define MyAppVersion "$version"
           [Setup]
           AppName={#MyAppName}
           AppVersion={#MyAppVersion}
-          DefaultDirName={autopf}\KSO
-          DefaultGroupName=KSO
-          OutputBaseFilename=KSO-Setup-x64-Offline-Full
+          DefaultDirName={autopf}\KSO Download Turbo Ultra V1PRO
+          DefaultGroupName=KSO Download Turbo Ultra V1PRO
+          OutputBaseFilename=KSO-Download-Turbo-Ultra-V1PRO-Setup
           Compression=lzma2/ultra64
           SolidCompression=yes
           ArchitecturesInstallIn64BitMode=x64
           WizardStyle=modern
-          SetupIconFile=Resources\icon.ico
-          UninstallDisplayIcon={app}\KSO.exe
+          SetupIconFile=icon.ico
+          UninstallDisplayIcon={app}\KSO-Download-Turbo-Ultra-V1PRO.exe
           [Files]
-          Source: "output\portable\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
-          Source: "Resources\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
+          Source: "output\KSO-Download-Turbo-Ultra-V1PRO.exe"; DestDir: "{app}"; Flags: ignoreversion
+          Source: "output\WebView2Runtime\*"; DestDir: "{app}\WebView2Runtime"; Flags: ignoreversion recursesubdirs
           [Run]
-          Filename: "{tmp}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; Parameters: "/silent /install"; StatusMsg: "جاري تثبيت WebView2 Runtime بدون نت..."; Flags: waituntilterminated
-          Filename: "{app}\KSO.exe"; Description: "تشغيل KSO الآن"; Flags: nowait postinstall skipifsilent
+          Filename: "{app}\KSO-Download-Turbo-Ultra-V1PRO.exe"; Description: "تشغيل KSO الآن"; Flags: nowait postinstall skipifsilent
           [Icons]
-          Name: "{group}\{#MyAppName}"; Filename: "{app}\KSO.exe"
-          Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\KSO.exe"
+          Name: "{group}\{#MyAppName}"; Filename: "{app}\KSO-Download-Turbo-Ultra-V1PRO.exe"
+          Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\KSO-Download-Turbo-Ultra-V1PRO.exe"
           "@
           $iss | Out-File setup.iss -Encoding UTF8
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup.iss
+
       - uses: actions/upload-artifact@v4
         with:
-          name: KSO-Builds-Offline-Full
+          name: KSO-Builds-V1PRO
           path:
-            KSO-Portable-x64-Offline.zip
-            KSO-Setup-x64-Offline-Full.exe
+            KSO-Download-Turbo-Ultra-V1PRO.zip
+            KSO-Download-Turbo-Ultra-V1PRO-Setup.exe
+
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files:
-            KSO-Portable-x64-Offline.zip
-            KSO-Setup-x64-Offline-Full.exe
+            KSO-Download-Turbo-Ultra-V1PRO.zip
+            KSO-Download-Turbo-Ultra-V1PRO-Setup.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
