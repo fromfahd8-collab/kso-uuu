@@ -17,13 +17,19 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "Resources"
-          Invoke-WebRequest "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "Resources\yt-dlp.exe"
-          Invoke-WebRequest "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile "ffmpeg.zip"
+          
+          Write-Host "Downloading yt-dlp..."
+          Invoke-WebRequest "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "Resources\yt-dlp.exe" -UseBasicParsing
+          
+          Write-Host "Downloading ffmpeg..."
+          Invoke-WebRequest "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile "ffmpeg.zip" -UseBasicParsing
           Expand-Archive "ffmpeg.zip" "ffmpeg_temp" -Force
           Get-ChildItem "ffmpeg_temp\ffmpeg-*\bin\ffmpeg.exe" | Copy-Item -Destination "Resources\ffmpeg.exe"
-
-          Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703&channel=stable&version=1.0.4078.44&distribution=win_x64" -OutFile "WebView2.zip"
+          
+          Write-Host "Downloading WebView2 Runtime..."
+          Invoke-WebRequest "https://go.microsoft.com/fwlink/p/?LinkId=2124703&channel=stable&version=1.0.4078.44&distribution=win_x64" -OutFile "WebView2.zip" -UseBasicParsing
           Expand-Archive "WebView2.zip" "Resources\WebView2Runtime" -Force
+          
           Copy-Item "Resources\icon.ico" -Destination "icon.ico" -ErrorAction SilentlyContinue
 
       - name: VERIFY FILES IN RESOURCES
