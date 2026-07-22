@@ -68,10 +68,7 @@ jobs:
               <PackageReference Include="Xceed.Wpf.Toolkit" Version="4.6.24151.1544" />
             </ItemGroup>
             <ItemGroup>
-              <EmbeddedResource Include="Resources\**" Exclude="Resources\WebView2Runtime\**" />
-              <Content Include="Resources\WebView2Runtime\**">
-                <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-              </Content>
+              <EmbeddedResource Include="Resources\**" />
             </ItemGroup>
           </Project>
           '@
@@ -148,9 +145,9 @@ jobs:
           Write-Host "=== CHECKING FINAL EXE NAME ==="
           if (Test-Path "output\KSO-Download-Turbo-Ultra-V1PRO.exe") { Write-Host "RENAME OK" } else { Write-Host "RENAME FAILED!" }
 
-      - name: Zip SingleFile EXE + Runtime
+      - name: Zip SingleFile EXE ONLY
         shell: pwsh
-        run: Compress-Archive -Path "output\KSO-Download-Turbo-Ultra-V1PRO.exe","output\WebView2Runtime" -DestinationPath "KSO-Download-Turbo-Ultra-V1PRO.zip"
+        run: Compress-Archive -Path "output\KSO-Download-Turbo-Ultra-V1PRO.exe" -DestinationPath "KSO-Download-Turbo-Ultra-V1PRO.zip"
 
       - name: Install Inno
         run: choco install innosetup -y
@@ -176,7 +173,6 @@ jobs:
           UninstallDisplayIcon={app}\KSO-Download-Turbo-Ultra-V1PRO.exe
           [Files]
           Source: "output\KSO-Download-Turbo-Ultra-V1PRO.exe"; DestDir: "{app}"; Flags: ignoreversion
-          Source: "output\WebView2Runtime\*"; DestDir: "{app}\WebView2Runtime"; Flags: ignoreversion recursesubdirs
           [Run]
           Filename: "{app}\KSO-Download-Turbo-Ultra-V1PRO.exe"; Description: "تشغيل KSO الآن"; Flags: nowait postinstall skipifsilent
           [Icons]
