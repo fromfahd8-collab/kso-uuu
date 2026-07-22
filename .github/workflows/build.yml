@@ -22,7 +22,7 @@ jobs:
           Invoke-WebRequest "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "Resources\yt-dlp.exe" -UseBasicParsing
           
           Write-Host "Downloading ffmpeg..."
-          Invoke-WebRequest "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n4.4.2-win64-gpl-shared.zip" -OutFile "ffmpeg.zip" -UseBasicParsing
+          Invoke-WebRequest "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile "ffmpeg.zip" -UseBasicParsing
           Expand-Archive "ffmpeg.zip" "ffmpeg_temp" -Force
           Get-ChildItem "ffmpeg_temp\ffmpeg-*\bin\ffmpeg.exe" | Copy-Item -Destination "Resources\ffmpeg.exe"
           
@@ -85,7 +85,7 @@ jobs:
           # امسح اي xmlns قديم
           $content = $content -replace 'xmlns:wv2="[^"]*"', ''
           # ضيف الصح - مهم: Microsoft.WebView2.Wpf
-          $content = $content -replace '<Window ', '<Window xmlns:wv2="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf" '
+          $content = $content -replace '<Window ', '<Window xmlns:wv2="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.WebView2.Wpf" '
           # حول التاجات
           $content = $content -replace '<WebView2', '<wv2:WebView2'
           $content = $content -replace '</WebView2>', '</wv2:WebView2>'
