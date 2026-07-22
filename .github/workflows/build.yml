@@ -81,11 +81,14 @@ jobs:
         run: |
           $xamlPath = "MainWindow.xaml"
           $content = Get-Content $xamlPath -Raw
-          if ($content -notlike '*xmlns:wv2=*') {
-            $content = $content -replace '<Window ', '<Window xmlns:wv2="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf" '
-          }
+          # امسح اي xmlns قديم
+          $content = $content -replace 'xmlns:wv2="[^"]*"', ''
+          # ضيف الصح - مهم: Microsoft.Web.WebView2.Wpf
+          $content = $content -replace '<Window ', '<Window xmlns:wv2="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf" '
+          # حول التاجات
           $content = $content -replace '<WebView2', '<wv2:WebView2'
           $content = $content -replace '</WebView2>', '</wv2:WebView2>'
+          # لو مفيش ضيف واحد
           if ($content -notlike '*wv2:WebView2*') {
             $content = $content -replace '</Window>', '<wv2:WebView2 Name="webView" />`n</Window>'
           }
