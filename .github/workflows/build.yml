@@ -17,25 +17,34 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "Resources"
-
+          
           Write-Host "Downloading yt-dlp..."
           Invoke-WebRequest "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "Resources\yt-dlp.exe" -UseBasicParsing
-
+          
           Write-Host "Downloading ffmpeg..."
           Invoke-WebRequest "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile "ffmpeg.zip" -UseBasicParsing
           Expand-Archive "ffmpeg.zip" "ffmpeg_temp" -Force
           Get-ChildItem "ffmpeg_temp\ffmpeg-*\bin\ffmpeg.exe" | Copy-Item -Destination "Resources\ffmpeg.exe"
-
-          Write-Host "Downloading WebView2 Runtime..."
+          
+          Write-Host "Downloading WebView2 Runtime with winget..."
           winget install Microsoft.EdgeWebView2Runtime --silent --accept-package-agreements --accept-source-agreements
-          Start-Sleep -Seconds 20
-          $wvPath = Get-ChildItem "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          if ($wvPath) {
-            New-Item -ItemType Directory -Force -Path "Resources\WebView2Runtime"
-            Copy-Item "$($wvPath.FullName)\*" -Destination "Resources\WebView2Runtime" -Recurse -Force
-          }
+          Start-Sleep -Seconds 15
+          $wvPath = Get-ChildItem "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          Copy-Item "$($wvPath.FullName)\*" -Destination "Resources\WebView2Runtime" -Recurse -Force
+          
+          Write-Host "Copying icon.ico from repo..."
+          Copy-Item "icon.ico" -Destination "icon.ico" -ErrorAction SilentlyContinue
+          Copy-Item "Resources\icon.ico" -Destination "icon.ico" -ErrorAction SilentlyContinue
 
-      - name: CREATE csproj FIXED FOR SINGLEFILE
+      - name: VERIFY FILES IN RESOURCES
+        shell: pwsh
+        run: |
+          Write-Host "=== FILES IN RESOURCES ==="
+          Get-ChildItem "Resources" -Recurse | Select-Object FullName, Length
+          Write-Host "=== ROOT FILES ==="
+          Get-ChildItem "icon.ico" -ErrorAction SilentlyContinue
+
+      - name: CREATE csproj WITH ALL RESOURCES EMBEDDED
         shell: pwsh
         run: |
           $csprojContent = @'
@@ -52,14 +61,15 @@ jobs:
               <SelfContained>true</SelfContained>
               <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
               <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
-              <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+              <ApplicationIcon>icon.ico</ApplicationIcon>
             </PropertyGroup>
             <ItemGroup>
               <PackageReference Include="Microsoft.WebView2" Version="1.0.4078.44" />
               <PackageReference Include="Xceed.Wpf.Toolkit" Version="4.6.24151.1544" />
             </ItemGroup>
             <ItemGroup>
-              <Content Include="Resources\**">
+              <EmbeddedResource Include="Resources\**" Exclude="Resources\WebView2Runtime\**" />
+              <Content Include="Resources\WebView2Runtime\**">
                 <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
               </Content>
             </ItemGroup>
@@ -67,8 +77,54 @@ jobs:
           '@
           $csprojContent | Out-File "KSO.csproj" -Encoding UTF8 -Force
 
+      - name: AUTO FIX MainWindow.xaml FOR WEBVIEW2
+        shell: pwsh
+        run: |
+          $xamlPath = "MainWindow.xaml"
+          $content = Get-Content $xamlPath -Raw
+          # امسح اي xmlns قديم
+          $content = $content -replace 'xmlns:wv2="[^"]*"', ''
+          # ضيف الصح - مهم: Microsoft.WebView2.Wpf
+          $content = $content -replace '<Window ', '<Window xmlns:wv2="clr-namespace:Microsoft.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf" '
+          # حول التاجات
+          $content = $content -replace '<WebView2', '<wv2:WebView2'
+          $content = $content -replace '</WebView2>', '</wv2:WebView2>'
+          # لو مفيش ضيف واحد
+          if ($content -notlike '*wv2:WebView2*') {
+            $content = $content -replace '</Window>', '<wv2:WebView2 Name="webView" />`n</Window>'
+          }
+          $content | Out-File $xamlPath -Encoding UTF8
+
+      - name: AUTO PATCH MainWindow.xaml.cs FOR OFFLINE WEBVIEW2
+        shell: pwsh
+        run: |
+          $csPath = "MainWindow.xaml.cs"
+          $content = Get-Content $csPath -Raw
+          if ($content -notlike '*using Microsoft.WebView2.Core;*') {
+            $content = "using Microsoft.WebView2.Core;`nusing System.IO;`nusing System.Threading.Tasks;`n" + $content
+          }
+          $initCode = @'
+
+          private async Task InitializeWebView2Offline()
+          {
+              try
+              {
+                  string webViewPath = Path.Combine(AppContext.BaseDirectory, "WebView2Runtime");
+                  var env = await CoreWebView2Environment.CreateAsync(webViewPath);
+                  if (webView != null)
+                      await webView.EnsureCoreWebView2Async(env);
+              }
+              catch {}
+          }
+          '@
+          if ($content -notlike '*InitializeWebView2Offline*') {
+            $content = $content -replace '(public MainWindow\(\)\s*\{)', '$1`nInitializeWebView2Offline();'
+            $content = $content -replace '(\})(\s*$)', "$initCode`n`$1"
+          }
+          $content | Out-File $csPath -Encoding UTF8 -Force
+
       - name: Restore
-        run: dotnet restore KSO.csproj
+        run: dotnet restore KSO.csproj --source https://api.nuget.org/v3/index.json
 
       - name: Publish SingleFile SelfContained
         shell: pwsh
@@ -77,22 +133,24 @@ jobs:
       - name: VERIFY OUTPUT FILES BEFORE RENAME
         shell: pwsh
         run: |
-          Write-Host "=== OUTPUT BEFORE RENAME ==="
+          Write-Host "=== OUTPUT FOLDER CONTENT ==="
           Get-ChildItem "output" -Recurse
+          Write-Host "=== CHECKING KSO.EXE ==="
+          if (Test-Path "output\KSO.exe") { Write-Host "EXE OK" } else { Write-Host "EXE MISSING!" }
 
       - name: Rename EXE
         shell: pwsh
-        run: Rename-Item "output\KSO.exe" "KSO-Download-Turbo-Ultra-V1PRO.exe" -ErrorAction SilentlyContinue
+        run: Rename-Item "output\KSO.exe" "KSO-Download-Turbo-Ultra-V1PRO.exe"
 
       - name: VERIFY OUTPUT FILES AFTER RENAME
         shell: pwsh
         run: |
-          Write-Host "=== OUTPUT AFTER RENAME ==="
-          Get-ChildItem "output"
+          Write-Host "=== CHECKING FINAL EXE NAME ==="
+          if (Test-Path "output\KSO-Download-Turbo-Ultra-V1PRO.exe") { Write-Host "RENAME OK" } else { Write-Host "RENAME FAILED!" }
 
       - name: Zip SingleFile EXE + Runtime
         shell: pwsh
-        run: Compress-Archive -Path "output\*" -DestinationPath "KSO-Download-Turbo-Ultra-V1PRO.zip"
+        run: Compress-Archive -Path "output\KSO-Download-Turbo-Ultra-V1PRO.exe","output\WebView2Runtime" -DestinationPath "KSO-Download-Turbo-Ultra-V1PRO.zip"
 
       - name: Install Inno
         run: choco install innosetup -y
@@ -114,13 +172,16 @@ jobs:
           SolidCompression=yes
           ArchitecturesInstallIn64BitMode=x64
           WizardStyle=modern
+          SetupIconFile=icon.ico
+          UninstallDisplayIcon={app}\KSO-Download-Turbo-Ultra-V1PRO.exe
           [Files]
-          Source: "output\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+          Source: "output\KSO-Download-Turbo-Ultra-V1PRO.exe"; DestDir: "{app}"; Flags: ignoreversion
+          Source: "output\WebView2Runtime\*"; DestDir: "{app}\WebView2Runtime"; Flags: ignoreversion recursesubdirs
+          [Run]
+          Filename: "{app}\KSO-Download-Turbo-Ultra-V1PRO.exe"; Description: "تشغيل KSO الآن"; Flags: nowait postinstall skipifsilent
           [Icons]
           Name: "{group}\{#MyAppName}"; Filename: "{app}\KSO-Download-Turbo-Ultra-V1PRO.exe"
           Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\KSO-Download-Turbo-Ultra-V1PRO.exe"
-          [Run]
-          Filename: "{app}\KSO-Download-Turbo-Ultra-V1PRO.exe"; Description: "تشغيل KSO الآن"; Flags: nowait postinstall skipifsilent
           "@
           $iss | Out-File setup.iss -Encoding UTF8
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup.iss
